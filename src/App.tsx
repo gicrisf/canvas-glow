@@ -4,7 +4,7 @@ import { useStore } from './Store';
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { isLoading, addNode } = useStore();
+  const { isLoading, nodes, addNode } = useStore();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -108,6 +108,14 @@ function App() {
     <div>
       <h1>I saw the Canvas glow</h1>
       <canvas ref={canvasRef} width="800" height="600"></canvas>
+
+      <div style={{ display: 'flex' }}>
+        {nodes.map((node, index) => (
+          <div key={index} style={{ marginRight: '10px' }}>
+            X: {node.X}, Y: {node.Y}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
