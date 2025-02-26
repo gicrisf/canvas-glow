@@ -27,7 +27,7 @@ function App() {
         data[i] = value;     // R
         data[i + 1] = value; // G
         data[i + 2] = value; // B
-        data[i + 3] = 155;   // A
+        data[i + 3] = 105;   // A
       }
 
       ctx.putImageData(imageData, 0, 0);
@@ -37,6 +37,9 @@ function App() {
     // Pulsing sphere
     const draw = () => {
       const { width, height } = canvas;
+
+      // Clear
+      ctx.clearRect(0, 0, width, height);
 
       if (!isLoading) {
         // Grey static circle when not loading
@@ -77,7 +80,7 @@ function App() {
       requestAnimationFrame(draw);
     };
 
-    drawNoise();
+    // drawNoise();
     draw();
   }, [isLoading]);
 
@@ -107,7 +110,7 @@ function App() {
   return (
     <div>
       <h1>I saw the canvas glow</h1>
-      <h3>{message}</h3>
+      <h3>&gt; {message}</h3>
       <canvas ref={canvasRef} width="800" height="600"></canvas>
 
       <div style={{ display: 'flex' }}>
