@@ -4,7 +4,7 @@ import { useStore } from './Store';
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { isLoading, nodes, addNode } = useStore();
+  const { isLoading, nodes, addNode, message, setMessage } = useStore();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -15,8 +15,8 @@ function App() {
     const drawNoise = () => {
       const { width, height } = canvas;
       // Black background
-      ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, width, height);
+      // ctx.fillStyle = 'black';
+      // ctx.fillRect(0, 0, width, height);
 
       // Static
       const imageData = ctx.createImageData(width, height);
@@ -106,10 +106,12 @@ function App() {
 
   return (
     <div>
-      <h1>I saw the Canvas glow</h1>
+      <h1>I saw the canvas glow</h1>
+      <h3>{message}</h3>
       <canvas ref={canvasRef} width="800" height="600"></canvas>
 
       <div style={{ display: 'flex' }}>
+        <div style={{ marginRight: '10px' }}>Nodes:</div>
         {nodes.map((node, index) => (
           <div key={index} style={{ marginRight: '10px' }}>
             X: {node.X}, Y: {node.Y}
