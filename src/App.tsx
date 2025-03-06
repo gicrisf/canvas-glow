@@ -2,9 +2,21 @@ import { useRef, useEffect } from 'react'
 import './App.css'
 import { useStore } from './Store';
 
+function NumberToString({ number }) {
+  const stringNumber = number.toString(); // or `${number}`
+  return <div>{stringNumber}</div>;
+}
+
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { isLoading, nodes, addNode, message } = useStore();
+  const { isLoadingClick,
+          isLoadingMove,
+          lastPointRecorded,
+          discardedMoves,
+          nodes,
+          addNode,
+          message,
+          sendMousePosition } = useStore();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -16,29 +28,6 @@ function App() {
 
       let frameCount = 0;
 
-      // Aesthetics
-      const drawNoise = () => {
-        const { width, height } = canvas;
-        // Black background
-        // ctx.fillStyle = 'black';
-        // ctx.fillRect(0, 0, width, height);
-
-        // Static
-        const imageData = ctx.createImageData(width, height);
-        const data = imageData.data;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const value = Math.floor(Math.random() * 256); // Random grayscale value
-          data[i] = value;     // R
-          data[i + 1] = value; // G
-          data[i + 2] = value; // B
-          data[i + 3] = 105;   // A
-        }
-
-        ctx.putImageData(imageData, 0, 0);
-        requestAnimationFrame(drawNoise);
-      };
-
       // Pulsing sphere
       const draw = () => {
         const { width, height } = canvas;
@@ -46,7 +35,7 @@ function App() {
         // Clear
         ctx.clearRect(0, 0, width, height);
 
-        if (!isLoading) {
+        if (!isLoadingClick) {
           // Grey static circle when not loading
           ctx.shadowBlur = 0; // No glow
           ctx.fillStyle = 'grey';
@@ -85,10 +74,9 @@ function App() {
         requestAnimationFrame(draw);
       };
 
-      // drawNoise();
       draw();
     }
-  }, [isLoading]);
+  }, [isLoadingClick]);
 
   // Actual work
   useEffect(() => {
@@ -106,9 +94,19 @@ function App() {
             break;
         }
       };
+
+      const handleMouseMove = (event: MouseEvent) => {
+        sendMousePosition({
+          X: (event.clientX),
+          Y: (event.clientY),
+        })
+      };
+
       canvas.addEventListener('mousedown', handleMouseClick);
+      canvas.addEventListener('mousemove', handleMouseMove);
       return () => {
         canvas.removeEventListener('mousedown', handleMouseClick);
+        canvas.removeEventListener('mousemove', handleMouseMove);
       };
     }
   }, []);
@@ -116,6 +114,9 @@ function App() {
   return (
     <div>
       <h1>I saw the canvas glow</h1>
+      <h2>MouseMove edition</h2>
+      <h3>&gt; Last point received: {lastPointRecorded}</h3>
+      <h3>&gt; Discarded moves: <NumberToString number={discardedMoves} /></h3>
       <h3>&gt; {message}</h3>
       <canvas ref={canvasRef} width="800" height="600"></canvas>
 
