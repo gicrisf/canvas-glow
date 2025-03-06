@@ -9,14 +9,10 @@ function NumberToString({ number }) {
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { isLoadingClick,
-          isLoadingMove,
-          lastPointRecorded,
-          discardedMoves,
-          nodes,
-          addNode,
-          message,
-          sendMousePosition } = useStore();
+  const isLoadingMove = useStore((state) => state.isLoadingMove);
+  const lastPointRecorded = useStore((state) => state.lastPointRecorded);
+  const sendMousePosition = useStore((state) => state.sendMousePosition);
+  const discardedMoves = useStore((state) => state.discardedMoves);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -35,48 +31,39 @@ function App() {
         // Clear
         ctx.clearRect(0, 0, width, height);
 
-        if (!isLoadingClick) {
-          // Grey static circle when not loading
-          ctx.shadowBlur = 0; // No glow
-          ctx.fillStyle = 'grey';
-          ctx.beginPath();
-          ctx.arc(width / 2, height / 2, 100, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          // Pulsing sphere when loading
-          ctx.shadowBlur = 20;
-          ctx.shadowColor = 'rgba(255, 105, 180, 0.8)';
+        // Pulsing sphere when loading
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = 'rgba(255, 105, 180, 0.8)';
 
-          const gradient = ctx.createRadialGradient(
-            width / 2 + Math.sin(frameCount * 0.05) * 50,
-            height / 2 + Math.cos(frameCount * 0.05) * 50,
-            0,
-            width / 2 + Math.sin(frameCount * 0.05) * 50,
-            height / 2 + Math.cos(frameCount * 0.05) * 50,
-            100
-          );
-          gradient.addColorStop(0, 'white');
-          gradient.addColorStop(1, 'rgba(255, 105, 180, 0.3)');
+        const gradient = ctx.createRadialGradient(
+          width / 2 + Math.sin(frameCount * 0.05) * 50,
+          height / 2 + Math.cos(frameCount * 0.05) * 50,
+          0,
+          width / 2 + Math.sin(frameCount * 0.05) * 50,
+          height / 2 + Math.cos(frameCount * 0.05) * 50,
+          100
+        );
+        gradient.addColorStop(0, 'white');
+        gradient.addColorStop(1, 'rgba(255, 105, 180, 0.3)');
 
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          const radius = 100 + 20 * Math.sin(frameCount * 0.05);
-          ctx.arc(
-            width / 2 + Math.sin(frameCount * 0.05) * 50,
-            height / 2 + Math.cos(frameCount * 0.05) * 50,
-            radius, 0, Math.PI * 2
-          );
-          ctx.fill();
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        const radius = 100 + 20 * Math.sin(frameCount * 0.05);
+        ctx.arc(
+          width / 2 + Math.sin(frameCount * 0.05) * 50,
+          height / 2 + Math.cos(frameCount * 0.05) * 50,
+          radius, 0, Math.PI * 2
+        );
+        ctx.fill();
 
-          frameCount++;
-        }
+        frameCount++;
 
         requestAnimationFrame(draw);
       };
 
       draw();
     }
-  }, [isLoadingClick]);
+  }, []);
 
   // Actual work
   useEffect(() => {
@@ -117,17 +104,7 @@ function App() {
       <h2>MouseMove edition</h2>
       <h3>&gt; Last point received: {lastPointRecorded}</h3>
       <h3>&gt; Discarded moves: <NumberToString number={discardedMoves} /></h3>
-      <h3>&gt; {message}</h3>
       <canvas ref={canvasRef} width="800" height="600"></canvas>
-
-      <div style={{ display: 'flex' }}>
-        <div style={{ marginRight: '10px' }}>Nodes:</div>
-        {nodes.map((node, index) => (
-          <div key={index} style={{ marginRight: '10px' }}>
-            X: {node.X}, Y: {node.Y}
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
