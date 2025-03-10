@@ -1,6 +1,6 @@
 # Building Robust React Apps with Zustand and Immer
 
-## Introduction {#introduction}
+## Introduction
 
 For years, I dodged React like the plague. In fact, I avoided JavaScript altogether, even in web-related tasks. Take static site generators, for example. For my old chemistry blog, I experimented with a variety of tools, year by year: Pelican, Jekyll, Hugo, Grav... In the end, I settled on Zola. Fast, robust, no JS needed, perfect for CI/CD workflows. Just prerendered HTML and sprinkle scripts for flair (e.g. comments, a masonry in the home page ecc.).
 
@@ -12,13 +12,13 @@ I love to find refuge in Elm's elegance and solidity, but recently, I’ve been 
 Particularly, I stumbled upon a couple of libraries that have the potential to transform even the most complex app development workflows: Immer and Zustand. In this post, I’ll show you how these two libraries interoperate seamlessly, enabling you to architect applications that transcend the entropic morass of lifecycle chaos that once defined React’s class components.
 
 
-## Zustand: a minimalist state solution {#zustand-a-minimalist-state-solution}
+## Zustand: a minimalist state solution
 
 As a longtime admirer of Redux (and its Elm/Flux-inspired architecture), I initially leaned on its strict unidirectional flow. But Redux’s boilerplate often felt at odds with React’s evolving simplicity.
 
 Let’s begin with the simplest case possible, something you can handle using a basic `useState` in React: a counter.
 
-```typescript
+```jsx
 import { useState } from 'react';
 
 function App() {
@@ -44,7 +44,7 @@ npm install zustand
 
 The following code replicates the same behavior as the previous one.
 
-```typescript
+```jsx
 import create from 'zustand';
 
 const useStore = create((set) => ({
@@ -74,13 +74,13 @@ export default App;
 This case resembles the previous one but has nuanced differences that become important in structured contexts. Unlike `useState`, which provides a dedicated value-setter pair, Zustand actions should encapsulate entire workflows rather than individual parameter updates (hence we call the action `increment`, not just `setCount`). More complex scenarios will illustrate this distinction clearly.
 
 
-## Effortless immutability with Immer {#effortless-immutability-with-immer}
+## Effortless immutability with Immer
 
 Zustand simplifies state management, yet its requirement for immutable updates in JavaScript can feel like a labyrinthine chore, especially when dealing with nested state — which is basically all the time. Immer operates like a tiny JavaScript alchemist, transmuting mutable-like code into immutable state updates.
 
 Let’s revisit the counter example, but this time, imagine we need to manage a more complex state object:
 
-```typescript
+```jsx
 import { useState } from 'react';
 
 function App() {
@@ -138,12 +138,12 @@ const increment = () => {
 Immer shines in scenarios where state is deeply nested or requires frequent updates. Its symbiosis with Zustand will become noticeable when we explore the middleware provided by Zustand itself.
 
 
-## I Saw the Canvas Glow: a practical example {#i-saw-the-canvas-glow-a-practical-example}
+## I Saw the Canvas Glow: a practical example
 
 Let’s design a slightly more complex scenario.
 
 
-### The challenge {#the-challenge}
+### The challenge
 
 We want a web app where users can interact with a canvas. When a user clicks on the canvas, a point is added.
 
@@ -216,11 +216,11 @@ See? Very simple. This way, we can test how out application behave in the worst 
 Some (OOO people) might argue that this could be represented with a class and solved using encapsulation in an object, but we intentionally avoided that approach because we’re taking the functional path. Let’s look at the real implementation.
 
 
-### The component {#the-component}
+### The component
 
 We're working in React (you didn’t forget, did you?). Let’s take a look at the main `App` component, which handles canvas rendering and user interactions:
 
-```typescript
+```jsx
 import { useRef, useEffect } from 'react'; // Everyday stuff
 import { useStore } from './Store'; // <-- Zustand store!
 // (We'll explore it right below)
@@ -263,7 +263,7 @@ function App() {
 You might have noticed the logic is missing here: that's because it is now fully encapsulated within Zustand.
 
 
-### The store {#the-store}
+### The store
 
 We’ve already seen how the `create` function works: you define both state variables and actions (functions that modify the state) inside the `create` function. Next, let’s examine the Immer integration:
 
@@ -331,7 +331,7 @@ export const useStore = create(
 We’ve done it! The `addPoint` action demonstrates handling asynchronous operations, such as the 10-second loading period (or, more realistically, a server call). Zustand doesn’t care whether your functions are synchronous or asynchronous (as long as they make sense).
 
 
-## Conclusions {#conclusions}
+## Conclusions 
 
 In the end, Zustand and Immer make a strong pair for state management in React. Missing Rust/Elm’s guarantees? You’ll never fully replicate them in JS, but TypeScript, paired with modern tooling, partially bridges the gap. Zustand cuts through the noise with its clean, focused approach. Immer smooths out the rough edges of immutable updates, especially in nested states. Together, they let you build solid, fast apps with less code and fewer mistakes.
 
