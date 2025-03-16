@@ -1,6 +1,9 @@
 import { useRef, useEffect } from 'react'
 import './App.css'
 import { useStore } from './Store';
+import { useTranslation } from 'react-i18next';
+
+import LanguageSwitcher from './LanguageSwitcher';
 
 function NumberToString({ number }) {
   const stringNumber = number.toString(); // or `${number}`
@@ -13,6 +16,8 @@ function App() {
   const lastPointRecorded = useStore((state) => state.lastPointRecorded);
   const sendMousePosition = useStore((state) => state.sendMousePosition);
   const discardedMoves = useStore((state) => state.discardedMoves);
+
+  const { t } = useTranslation();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -100,10 +105,11 @@ function App() {
 
   return (
     <div>
-      <h1>I saw the canvas glow</h1>
-      <h2>MouseMove edition</h2>
-      <h3>&gt; Last point received: {lastPointRecorded}</h3>
-      <h3>&gt; Discarded moves: <NumberToString number={discardedMoves} /></h3>
+      <h1>{t('title')}</h1>
+      <h2>{t('subtitle')}</h2>
+      <h3>&gt; {t('lastPointReceived')}: {lastPointRecorded}</h3>
+      <h3>&gt; {t('discardedMoves')}: <NumberToString number={discardedMoves} /></h3>
+      <LanguageSwitcher />
       <canvas ref={canvasRef} width="800" height="600"></canvas>
     </div>
   )
