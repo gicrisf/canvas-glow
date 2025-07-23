@@ -1,8 +1,9 @@
-import { test, expect } from '@playwright/test';
+import { test } from './test-setup';
+import { expect } from '@playwright/test';
 
 test.use({ headless: false });
 
-test('get all points received after mouse movements', async ({ page }) => {
+test('get all points received after mouse movements', async ({ page, getAllPoints }) => {
   await page.goto('http://localhost:5173');
 
   // Simulate mouse movement
@@ -22,9 +23,8 @@ test('get all points received after mouse movements', async ({ page }) => {
     }
   }
 
-  // Get the textContent of the 'All points received' container
-  const allPointsText = await page.locator('[data-testid="all-points"]').textContent();
-  console.log('All points received:', allPointsText);
-
-  expect(allPointsText).toBeTruthy();
+  // Use the helper after actions
+  const allPoints = await getAllPoints();
+  console.log('All points received:', allPoints);
+  expect(allPoints.length).toBeGreaterThan(0);
 });
