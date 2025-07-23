@@ -2,10 +2,25 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { devtools } from 'zustand/middleware';
 
+type ActionName =
+  'openPage' | // By default, this is the first one
+  'check' |
+  'click' |  // I implement this one only, but we can extend this later
+  'fill' |
+  'press' |
+  'select' |
+  'uncheck' |
+  'setInputFiles';
+
 type Point = {
   X: number;
   Y: number;
 }
+
+type Action = {
+    name: ActionName;
+    index: number;
+};
 
 type State = {
     message: string;
@@ -15,12 +30,14 @@ type State = {
     lastPointRecorded: string;
     allPoints: string[];
     discardedMoves: number;
+    actions: Action[];
 }
 
 type Actions = {
     addNode: (point: Point) => void;
     setMessage: (msg: string) => void;
     sendMousePosition: (point: Point) => Promise<void>;
+    setLastAction: (action: ActionName) => void;
 }
 
 const initialState: State = {
@@ -30,7 +47,8 @@ const initialState: State = {
     nodes: [],
     lastPointRecorded: "no one moved yet...",
     allPoints: [],
-    discardedMoves: 0
+    discardedMoves: 0,
+    actions: [{ name: 'openPage', index: 1 }]
 }
 
 export const useStore = create<State & Actions>()(
@@ -40,6 +58,12 @@ export const useStore = create<State & Actions>()(
             setMessage: (msg: string) => {
                 set((state) => {
                     state.message = msg;
+                });
+            },
+            setLastAction: (name: ActionName) => {
+                set((state) => {
+                    const count = state.actions.filter(a => a.name === name).length + 1;
+                    state.actions.push({ name, index: count });
                 });
             },
             addNode: (point: Point) => {
@@ -73,7 +97,16 @@ export const useStore = create<State & Actions>()(
                     set((state) => {
                         state.isLoadingMove = true;
                     });
-                    new Promise<void>((resolve) => {
+                    // fetch('/api/recordPoint', {
+                    //     method: 'POST',
+                    //     headers: {
+                    //         'Content-Type': 'application/json',
+                    //     },
+                    //     body: JSON.stringify(point),
+                    // })
+                    // Emulating this call with a timeout
+                    new Promise((resolve) => {
+                        // emulate a 10 seconds job
                         setTimeout(() => {
                             resolve();
                         }, 250);

@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react'
-import './App.css'
 import { useStore } from './Store';
+import './App.css'
 
 function NumberToString({ number }) {
   const stringNumber = number.toString(); // or `${number}`
@@ -9,10 +9,12 @@ function NumberToString({ number }) {
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isLoadingMove = useStore((state) => state.isLoadingMove);
+  // const isLoadingMove = useStore((state) => state.isLoadingMove);
   const lastPointRecorded = useStore((state) => state.lastPointRecorded);
   const sendMousePosition = useStore((state) => state.sendMousePosition);
   const discardedMoves = useStore((state) => state.discardedMoves);
+  const actions = useStore((state) => state.actions);
+  const setLastAction = useStore((state) => state.setLastAction);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -72,10 +74,11 @@ function App() {
       const handleMouseClick = (event: MouseEvent) => {
         switch (event.button) {
           case 0:
-            addNode({
-              X: (event.clientX),
-              Y: (event.clientY),
-            });
+            setLastAction('click');
+            // addNode({
+              // X: (event.clientX),
+              // Y: (event.clientY),
+            // });
             break;
           default:
             break;
@@ -98,13 +101,13 @@ function App() {
     }
   }, []);
 
-
   return (
     <div>
       <h1>I saw the canvas glow</h1>
       <h2>MouseMove edition</h2>
       <h3>&gt; Last point received: {lastPointRecorded}</h3>
       <h3>&gt; Discarded moves: <NumberToString number={discardedMoves} /></h3>
+      <h3 data-testid="last-action">&gt; Last action: {actions.length > 0 ? `${actions[actions.length-1].name} #${actions[actions.length-1].index}` : 'none'}</h3>
       <canvas ref={canvasRef} width="800" height="600"></canvas>
       <div style={{ marginTop: 20 }}>
         <h3>All points received:</h3>
