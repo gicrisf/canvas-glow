@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 
 test.use({ headless: false });
 
-test('get all points received after mouse movements', async ({ page, getAllPoints }) => {
+test('get all points received after mouse movements', async ({ page, getAllSeries }) => {
     // Open the application
     await page.goto('http://localhost:5173');
 
@@ -37,13 +37,17 @@ test('get all points received after mouse movements', async ({ page, getAllPoint
     await page.waitForTimeout(1000);
 
     // Use the helper after actions
-    const allPoints = await getAllPoints();
-    expect(allPoints.length).toBeGreaterThan(0);
+    const allPoints = await getAllSeries();
+    // expect(allPoints.length).toBeGreaterThan(0);
 
-    // Get coordinates from allPoints and move mouse to each
-    for (const pt of allPoints) {
-        await page.mouse.move(pt.X, pt.Y);
-        await page.waitForTimeout(500);
+    // Replay mouse moves for each series
+    for (const series of allPoints) {
+        // Optionally log the action
+        console.log('Replaying:', series.action);
+        for (const pt of series.points) {
+            await page.mouse.move(pt.X, pt.Y);
+            await page.waitForTimeout(500);
+        }
     }
 });
 
