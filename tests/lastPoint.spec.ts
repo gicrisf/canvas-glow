@@ -20,7 +20,15 @@ test('capture and replay mouse movements on canvas', async ({ page }) => {
     for (const [x, y] of points) {
       await page.mouse.move(x, y);
       await page.waitForTimeout(1000); // Increased wait for UI update
-      coordinates.push({ x, y });
+      const lastPoint = await page.locator('h3', { hasText: 'Last point received:' }).textContent();
+      const coordsText = extractCoords(lastPoint ?? '');
+      if (coordsText) {
+        // Parse the coordinates from the string
+        const match = coordsText.match(/\{ X: (\d+); Y: (\d+) \}/);
+        if (match) {
+          coordinates.push({ x: parseInt(match[1], 10), y: parseInt(match[2], 10) });
+        }
+      }
     }
   }
 
@@ -62,3 +70,4 @@ test('capture and replay mouse movements on canvas', async ({ page }) => {
     expect(coordsAlmostEqual(actualCoords, expectedCoords)).toBe(true);
   }
 });
+3
