@@ -105,7 +105,7 @@ export const useStore = create<State & Actions>()(
                     //     body: JSON.stringify(point),
                     // })
                     // Emulating this call with a timeout
-                    new Promise((resolve) => {
+                    new Promise<void>((resolve) => {
                         // emulate a 10 seconds job
                         setTimeout(() => {
                             resolve();
