@@ -11,8 +11,9 @@ type State = {
     message: string;
     isLoadingClick: boolean;
     isLoadingMove: boolean;
-    nodes: Node[];
+    nodes: Point[];
     lastPointRecorded: string;
+    allPoints: string[];
     discardedMoves: number;
 }
 
@@ -28,6 +29,7 @@ const initialState: State = {
     isLoadingMove: false,
     nodes: [],
     lastPointRecorded: "no one moved yet...",
+    allPoints: [],
     discardedMoves: 0
 }
 
@@ -52,8 +54,7 @@ export const useStore = create<State & Actions>()(
                     console.log("Node pushed. Now loading...");
                     log("Node pushed. Now loading...");
 
-                    new Promise((resolve) => {
-                        // emulate a 10 seconds job
+                    new Promise<void>((resolve) => {
                         setTimeout(() => {
                             resolve();
                         }, 10000);
@@ -72,22 +73,15 @@ export const useStore = create<State & Actions>()(
                     set((state) => {
                         state.isLoadingMove = true;
                     });
-                    // fetch('/api/recordPoint', {
-                    //     method: 'POST',
-                    //     headers: {
-                    //         'Content-Type': 'application/json',
-                    //     },
-                    //     body: JSON.stringify(point),
-                    // })
-                    // Emulating this call with a timeout
-                    new Promise((resolve) => {
-                        // emulate a 10 seconds job
+                    new Promise<void>((resolve) => {
                         setTimeout(() => {
                             resolve();
                         }, 250);
                     }).then(() => {
                         set((state) => {
-                            state.lastPointRecorded = `{ X: ${point.X}; Y: ${point.Y} }`;
+                            const newPoint = `{ X: ${point.X}; Y: ${point.Y} }`;
+                            state.lastPointRecorded = newPoint;
+                            state.allPoints.push(newPoint);
                             state.isLoadingMove = false;
                         });
                     });

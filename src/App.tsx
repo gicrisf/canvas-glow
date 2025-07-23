@@ -98,6 +98,7 @@ function App() {
     }
   }, []);
 
+
   return (
     <div>
       <h1>I saw the canvas glow</h1>
@@ -105,6 +106,14 @@ function App() {
       <h3>&gt; Last point received: {lastPointRecorded}</h3>
       <h3>&gt; Discarded moves: <NumberToString number={discardedMoves} /></h3>
       <canvas ref={canvasRef} width="800" height="600"></canvas>
+      <div style={{ marginTop: 20 }}>
+        <h3>All points received:</h3>
+        <div data-testid="all-points" style={{ maxHeight: 200, overflowY: 'auto' }}>
+          {useStore((state) => state.allPoints).map((pt: string, idx: number) => (
+            <div key={idx}>{pt}</div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
