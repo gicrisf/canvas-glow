@@ -15,6 +15,8 @@ function App() {
   const discardedMoves = useStore((state) => state.discardedMoves);
   const actions = useStore((state) => state.actions);
   const setLastAction = useStore((state) => state.setLastAction);
+  const allPoints = useStore((state) => state.allPoints);
+  const setAllPoints = useStore((state) => state.setAllPoints);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -85,11 +87,21 @@ function App() {
         }
       };
 
+      let lastLoggedAction = actions.length > 0 ? actions[actions.length-1].name : null;
       const handleMouseMove = (event: MouseEvent) => {
         sendMousePosition({
           X: (event.clientX),
           Y: (event.clientY),
-        })
+        });
+        // Check if action changed
+        const currentAction = actions.length > 0 ? actions[actions.length-1].name : null;
+        if (currentAction !== lastLoggedAction) {
+          // Log action change in all-points
+          if (setAllPoints) {
+            setAllPoints([...allPoints, `Action changed: ${currentAction}`]);
+          }
+          lastLoggedAction = currentAction;
+        }
       };
 
       canvas.addEventListener('mousedown', handleMouseClick);

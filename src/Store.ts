@@ -113,6 +113,26 @@ export const useStore = create<State & Actions>()(
                     }).then(() => {
                         set((state) => {
                             const newPoint = `{ X: ${point.X}; Y: ${point.Y} }`;
+                            const actions = state.actions;
+                            const lastAction = actions.length > 0 ? actions[actions.length - 1] : null;
+                            // Find the last logged action in allPoints
+                            let lastLoggedAction = null;
+                            for (let i = state.allPoints.length - 1; i >= 0; i--) {
+                              if (state.allPoints[i].startsWith('Last action')) {
+                                lastLoggedAction = state.allPoints[i];
+                                break;
+                              }
+                            }
+                            let shouldLogAction = false;
+                            if (lastAction) {
+                              const actionString = `Last action ${lastAction.name} ${lastAction.index}`;
+                              if (lastLoggedAction === null || lastLoggedAction !== actionString) {
+                                shouldLogAction = true;
+                              }
+                              if (shouldLogAction) {
+                                state.allPoints.push(actionString);
+                              }
+                            }
                             state.lastPointRecorded = newPoint;
                             state.allPoints.push(newPoint);
                             state.isLoadingMove = false;
