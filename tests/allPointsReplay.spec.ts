@@ -38,7 +38,7 @@ test('get all points received after mouse movements', async ({ page, getAllSerie
 
     // Use the helper after actions
     const allPoints = await getAllSeries();
-    // expect(allPoints.length).toBeGreaterThan(0);
+    expect(allPoints.length).toBeGreaterThan(0);
 
     // Replay mouse moves for each series
     for (const series of allPoints) {

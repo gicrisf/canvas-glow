@@ -13,27 +13,20 @@ export const test = base.extend<{ getAllSeries: () => Promise<{ action: string, 
         const locator = page.locator('[data-testid="all-points"]');
         await locator.waitFor({ state: 'visible', timeout: 10000 });
         const text = await locator.textContent();
+        console.log('All points text:', text);
         if (!text) return [];
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        // Split by 'Last action' and filter out empty segments
+        const segments = text.split('Last action').map(s => s.trim()).filter(Boolean);
         const series: { action: string, points: Point[] }[] = [];
-        let currentAction = '';
-        let currentPoints: Point[] = [];
-        for (const line of lines) {
-          if (line.startsWith('Last action')) {
-            if (currentPoints.length > 0) {
-              series.push({ action: currentAction, points: currentPoints });
-              currentPoints = [];
-            }
-            currentAction = line;
-          } else {
-            const match = line.match(/\{ X: (\d+); Y: (\d+) \}/);
-            if (match) {
-              currentPoints.push({ X: Number(match[1]), Y: Number(match[2]) });
-            }
-          }
-        }
-        if (currentPoints.length > 0) {
-          series.push({ action: currentAction, points: currentPoints });
+        for (const segment of segments) {
+          // Extract action (until first '{')
+          const actionMatch = segment.match(/^(.*?)\{/);
+          const action = actionMatch ? actionMatch[1].trim() : 'unknown';
+          // Extract all points
+          const pointMatches = Array.from(segment.matchAll(/\{ X: (\d+); Y: (\d+) \}/g));
+          const points: Point[] = pointMatches.map(m => ({ X: Number(m[1]), Y: Number(m[2]) }));
+          console.log('Extracted points:', points);
+          series.push({ action, points });
         }
         return series;
       };
