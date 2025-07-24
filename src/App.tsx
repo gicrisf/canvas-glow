@@ -10,11 +10,10 @@ function NumberToString({ number }: { number: number }) {
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // const isLoadingMove = useStore((state) => state.isLoadingMove);
-  const lastPointRecorded = useStore((state) => state.lastPointRecorded);
   const sendMousePosition = useStore((state) => state.sendMousePosition);
   const discardedMoves = useStore((state) => state.discardedMoves);
   const actions = useStore((state) => state.actions);
-  const setLastAction = useStore((state) => state.setLastAction);
+  const updateLastAction = useStore((state) => state.updateLastAction);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -74,7 +73,7 @@ function App() {
       const handleMouseClick = (event: MouseEvent) => {
         switch (event.button) {
           case 0:
-            setLastAction('click');
+            updateLastAction('click');
             // addNode({
               // X: (event.clientX),
               // Y: (event.clientY),
@@ -104,17 +103,28 @@ function App() {
   return (
     <div>
       <h1>I saw the canvas glow</h1>
-      <h2>MouseMove edition</h2>
-      <h3>&gt; Last point received: {lastPointRecorded}</h3>
+      <h2>MouseMove edition</h2> 
       <h3>&gt; Discarded moves: <NumberToString number={discardedMoves} /></h3>
-      <h3 data-testid="last-action">&gt; Last action: {actions.length > 0 ? `${actions[actions.length-1].name} #${actions[actions.length-1].index}` : 'none'}</h3>
+      <h3 data-testid="last-action">
+        &gt; Last action: {(() => {
+          if (actions.length === 0) return '(none)';
+          const last = actions[actions.length - 1];
+          return `(${last.name} ${last.index})`;
+        })()}
+      </h3>
       <canvas ref={canvasRef} width="800" height="600"></canvas>
       <div style={{ marginTop: 20 }}>
         <h3>All points received:</h3>
-        <div data-testid="all-points" style={{ maxHeight: 200, overflowY: 'auto' }}>
-          {useStore((state) => state.allPoints).map((pt: string, idx: number) => (
-            <div key={idx}>{pt}</div>
-          ))}
+        <div data-testid="all-points" style={{ maxHeight: 200, overflowY: 'auto', fontFamily: 'monospace' }}>
+          {(() => {
+            const actions = useStore((state) => state.actions);
+            return `(${actions.map((action) => {
+              const pointsSexpr = action.points && action.points.length > 0
+                ? `(${action.points.map(p => `(${p.X} ${p.Y})`).join(' ')})`
+                : '()';
+              return `(${action.name} ${action.index} ${pointsSexpr})`;
+            }).join(' ')})`;
+          })()}
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { devtools } from 'zustand/middleware';
 
-type ActionName =
+type PwActionName =
   'openPage' | // By default, this is the first one
   'check' |
   'click' |  // I implement this one only, but we can extend this later
@@ -17,9 +17,10 @@ type Point = {
   Y: number;
 }
 
-type Action = {
-    name: ActionName;
+type PwAction = {
+    name: PwActionName;
     index: number;
+    points: Point[];
 };
 
 type State = {
@@ -27,17 +28,16 @@ type State = {
     isLoadingClick: boolean;
     isLoadingMove: boolean;
     nodes: Point[];
-    lastPointRecorded: string;
-    allPoints: string[];
     discardedMoves: number;
-    actions: Action[];
+    actions: PwAction[];
+    lastAction: PwAction;
 }
 
 type Actions = {
     addNode: (point: Point) => void;
     setMessage: (msg: string) => void;
     sendMousePosition: (point: Point) => Promise<void>;
-    setLastAction: (action: ActionName) => void;
+    updateLastAction: (action: PwActionName) => void;
 }
 
 const initialState: State = {
@@ -45,10 +45,9 @@ const initialState: State = {
     isLoadingClick: false,
     isLoadingMove: false,
     nodes: [],
-    lastPointRecorded: "no one moved yet...",
-    allPoints: [],
     discardedMoves: 0,
-    actions: [{ name: 'openPage', index: 1 }]
+    actions: [],
+    lastAction: { name: 'openPage', index: 0, points: [] },
 }
 
 export const useStore = create<State & Actions>()(
@@ -60,10 +59,14 @@ export const useStore = create<State & Actions>()(
                     state.message = msg;
                 });
             },
-            setLastAction: (name: ActionName) => {
+            updateLastAction: (name: PwActionName) => {
                 set((state) => {
+                    // Store the previous action in the actions array
+                    state.actions.push(state.lastAction);
+                    // and increment the index for the next one
                     const count = state.actions.filter(a => a.name === name).length;
-                    state.actions.push({ name, index: count });
+                    // Update the last action with the new name and index
+                    state.lastAction = { name, index: count, points: [] };
                 });
             },
             addNode: (point: Point) => {
@@ -112,29 +115,8 @@ export const useStore = create<State & Actions>()(
                         }, 250);
                     }).then(() => {
                         set((state) => {
-                            const newPoint = `{ X: ${point.X}; Y: ${point.Y} }`;
-                            const actions = state.actions;
-                            const lastAction = actions.length > 0 ? actions[actions.length - 1] : null;
-                            // Find the last logged action in allPoints
-                            let lastLoggedAction = null;
-                            for (let i = state.allPoints.length - 1; i >= 0; i--) {
-                              if (state.allPoints[i].startsWith('Last action')) {
-                                lastLoggedAction = state.allPoints[i];
-                                break;
-                              }
-                            }
-                            let shouldLogAction = false;
-                            if (lastAction) {
-                              const actionString = `Last action ${lastAction.name} ${lastAction.index}`;
-                              if (lastLoggedAction === null || lastLoggedAction !== actionString) {
-                                shouldLogAction = true;
-                              }
-                              if (shouldLogAction) {
-                                state.allPoints.push(actionString);
-                              }
-                            }
-                            state.lastPointRecorded = newPoint;
-                            state.allPoints.push(newPoint);
+                            state.lastAction.points.push({ X: point.X, Y: point.Y });
+                            console.log(`Point received: (${point.X}, ${point.Y})`);
                             state.isLoadingMove = false;
                         });
                     });
