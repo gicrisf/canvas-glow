@@ -62,7 +62,7 @@ export const useStore = create<State & Actions>()(
             },
             setLastAction: (name: ActionName) => {
                 set((state) => {
-                    const count = state.actions.filter(a => a.name === name).length + 1;
+                    const count = state.actions.filter(a => a.name === name).length;
                     state.actions.push({ name, index: count });
                 });
             },
