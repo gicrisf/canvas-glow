@@ -1,29 +1,36 @@
 import { test as base } from '@playwright/test';
 
+type PwActionName =
+    'openPage' |
+    'check' |
+    'click' | 
+    'fill' |
+    'press' |
+    'select' |
+    'uncheck' |
+    'setInputFiles';
+
 type Point = {
     X: number;
     Y: number;
 }
 
-type ActionName =
-  'openPage' |
-  'check' |
-  'click' |
-  'fill' |
-  'press' |
-  'select' |
-  'uncheck' |
-  'setInputFiles';
+type PwAction = {
+    name: PwActionName;
+    index: number;
+    points: Point[];
+};
 
 export const test = base.extend<{
-    getAllSeries: () => Promise<{ action: string, points: Point[] }[]>;
-    replaySeries: (series: { action: string, points: { X: number, Y: number }[] }) => Promise<void>;
+    getAllSeries: () => Promise<PwAction[]>;
+    replaySeries: (series: PwAction) => Promise<void>;
     runAdvicedActions: () => Promise<void>;
+    parseSexprActions: (sexpr: string) => PwAction[];
 }>(
     {
         page: async ({ page }, use) => {
             // Array to store action objects for this test only
-            const pageActionLog: { action: ActionName, index: number, after: null, original: any[] }[] = [];
+            const pageActionLog: { action: PwActionName, index: number, after: null, original: any[] }[] = [];
             // Expose for debugging
             (page as any).pageActionLog = pageActionLog;
 
@@ -76,50 +83,50 @@ export const test = base.extend<{
             // Destroy the array after the test
             pageActionLog.length = 0;
         },
-        getAllSeries: async ({ page }, use) => {
-            // Helper to extract series of points grouped by their preceding action
-            const getSeries = async (): Promise<{ action: string, points: Point[] }[]> => {
+        parseSexprActions: ({ page }, use) => {
+            // Helper to extract series of actions and points from s-expression format
+            const parseSexprActionsHelper = (sexpr: string): PwAction[] => {
+                // Remove outer parentheses and trim
+                const trimmed = sexpr.trim().replace(/^\(|\)$/g, '');
+                // Match each action s-expression
+                const actionRegex = /\((\w+)\s+(\d+)\s+\(((?:\(\d+\s+\d+\)\s*)*)\)\)/g;
+                const result: PwAction[] = [];
+                let match;
+                while ((match = actionRegex.exec(trimmed)) !== null) {
+                    const [, action, index, pointsStr] = match;
+                    const points: Point[] = [];
+                    const pointRegex = /\((\d+)\s+(\d+)\)/g;
+                    let pointMatch;
+                    while ((pointMatch = pointRegex.exec(pointsStr)) !== null) {
+                        points.push({ X: Number(pointMatch[1]), Y: Number(pointMatch[2]) });
+                    }
+                    console.log(`Parsed action: ${action} ${index}`, points);
+                    result.push({ name: action as PwActionName, index: Number(index), points });
+                }
+                return result;
+            };
+
+            use(parseSexprActionsHelper);
+        }, 
+        getAllSeries: async ({ page, parseSexprActions }, use) => {
+            // This method extracts all actions and points from the 'All points received' container
+            const getSeries = async (): Promise<PwAction[]> => {
                 const locator = page.locator('[data-testid="all-points"]');
                 await locator.waitFor({ state: 'visible', timeout: 10000 });
                 const text = await locator.textContent();
                 console.log('All points text:', text);
                 if (!text) return [];
-                // Split by 'Last action' and filter out empty segments
-                const segments = text.split('Last action').map(s => s.trim()).filter(Boolean);
-                const series: { action: string, points: Point[] }[] = [];
-                for (const segment of segments) {
-                    // Extract action (until first '{')
-                    const actionMatch = segment.match(/^(.*?)\{/);
-                    let action = actionMatch ? actionMatch[1].trim() : 'unknown';
-                    // Try to extract ActionName and index
-                    const actionParts = action.match(/^(\w+)\s+(\d+)$/);
-                    let actionName: string | undefined = undefined;
-                    let actionIndex: number | undefined = undefined;
-                    if (actionParts) {
-                        actionName = actionParts[1];
-                        actionIndex = parseInt(actionParts[2], 10);
-                    }
-                    // Extract all points
-                    const pointMatches = Array.from(segment.matchAll(/\{ X: (\d+); Y: (\d+) \}/g));
-                    const points: Point[] = pointMatches.map(m => ({ X: Number(m[1]), Y: Number(m[2]) }));
-                    console.log('Extracted points:', points);
-                    series.push({ action, points });
-                    // If actionName and actionIndex are valid, try to find and update pageActionLog
-                    if (actionName && typeof actionIndex === 'number' && (page as any).pageActionLog) {
-                        const logEntry = (page as any).pageActionLog.find((a: any) => a.action === actionName && a.index === actionIndex);
-                        if (logEntry) {
-                            logEntry.after = { action, points };
-                            console.log("logEntry found!");
-                        }
-                    }
-                }
-                return series;
+                const seriesRaw = parseSexprActions(text); 
+                // Optionally update pageActionLog if needed (not shown here)
+                return seriesRaw;
             };
+            // Use getSeries, but return PwAction[] directly
             await use(getSeries);
         },
         replaySeries: async ({ page }, use) => {
-            const replay = async (series: { action: string, points: { X: number, Y: number }[] }) => {
-                console.log('Replaying:', series.action);
+            // Accept a PwAction instead of a plain object
+            const replay = async (series: PwAction) => {
+                console.log('Replaying:', series.name);
                 for (const pt of series.points) {
                     await page.mouse.move(pt.X, pt.Y);
                     await page.waitForTimeout(500);

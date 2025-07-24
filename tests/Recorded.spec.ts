@@ -1,8 +1,6 @@
 import { expect } from '@playwright/test';
 import { test } from './test-setup';
 
-test.use({ headless: false });
-
 test('test', async ({ page, runAdvicedActions }) => {
   await page.goto('http://localhost:5173/');
   await page.locator('canvas').click({
@@ -54,5 +52,6 @@ test('test', async ({ page, runAdvicedActions }) => {
     }
   });
 
-    await runAdvicedActions();
+  // Could be useful to add pieces at the end of the test
+  await runAdvicedActions();
 });

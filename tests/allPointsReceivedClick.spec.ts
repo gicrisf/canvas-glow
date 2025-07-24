@@ -3,7 +3,7 @@ import { test } from './test-setup';
 
 test.use({ headless: false });
 
-test('get all points received after canvas clicks', async ({ page, runAdvicedActions }) => {
+test('get all points received after canvas clicks', async ({ page, runAdvicedActions, parseSexprActions }) => {
     await page.goto('http://localhost:5173');
 
     // Click at several points on the canvas
@@ -26,8 +26,9 @@ test('get all points received after canvas clicks', async ({ page, runAdvicedAct
     // Get the textContent of the 'All points received' container
     const allPointsText = await page.locator('[data-testid="all-points"]').textContent();
     console.log('All points received after clicks:', allPointsText);
-    // I don't expect(allPointsText).toBeTruthy() anymore
-    // expect(allPointsText).toBeTruthy();
+    expect(allPointsText).toBeTruthy();
 
+    const series = allPointsText ? parseSexprActions(allPointsText) : [];
+    console.log('Parsed series:', series);
     await runAdvicedActions();
 });
