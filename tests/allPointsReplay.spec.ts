@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 
 test.use({ headless: false });
 
-test('get all points received after mouse movements', async ({ page, getAllSeries, replaySeries }) => {
+test('get all points received after mouse movements', async ({ page, getAllSeries, runAdvicedActions }) => {
     // Open the application
     await page.goto('http://localhost:5173');
 
@@ -17,7 +17,7 @@ test('get all points received after mouse movements', async ({ page, getAllSerie
     const startY = boundingBox.y + boundingBox.height / 2;
 
     // Click at the starting point
-    await page.mouse.click(startX, startY);
+    await page.mouse.click(startX + 10, startY + 10);
     await page.waitForTimeout(1000);
 
     // Simulate mouse movement
@@ -32,18 +32,15 @@ test('get all points received after mouse movements', async ({ page, getAllSerie
         await page.waitForTimeout(1000);
     }
 
-    // Click again at the starting point
-    await page.mouse.click(startX, startY);
+    // Click again
+    await page.mouse.click(startX + 30, startY + 30);
     await page.waitForTimeout(1000);
 
     // Use the helper after actions
-    const allPoints = await getAllSeries();
-    expect(allPoints.length).toBeGreaterThan(0);
+    const allSeries = await getAllSeries();
+    expect(allSeries.length).toBeGreaterThan(0);
 
-    // Replay mouse moves for each series 
-    for (const series of allPoints) {
-        await replaySeries(series);
-    }
+    await runAdvicedActions(); 
 });
 
 
