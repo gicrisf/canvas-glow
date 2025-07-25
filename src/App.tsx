@@ -23,46 +23,59 @@ function App() {
         throw new Error("Canvas ctx not found!");
       }
 
-      let frameCount = 0;
+      // Store the last N points of the cursor path
+      const MAX_POINTS = 60;
+      let points: { x: number, y: number }[] = [];
 
-      // Pulsing sphere
+      // Initialize with center point
+      points.push({ x: canvas.width / 2, y: canvas.height / 2 });
+
+      // Draw a smooth path following the cursor
       const draw = () => {
         const { width, height } = canvas;
-
-        // Clear
         ctx.clearRect(0, 0, width, height);
 
-        // Pulsing sphere when loading
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = 'rgba(255, 105, 180, 0.8)';
+        if (points.length > 1) {
+          ctx.save();
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = 'rgba(255, 105, 180, 0.8)';
 
-        const gradient = ctx.createRadialGradient(
-          width / 2 + Math.sin(frameCount * 0.05) * 50,
-          height / 2 + Math.cos(frameCount * 0.05) * 50,
-          0,
-          width / 2 + Math.sin(frameCount * 0.05) * 50,
-          height / 2 + Math.cos(frameCount * 0.05) * 50,
-          100
-        );
-        gradient.addColorStop(0, 'white');
-        gradient.addColorStop(1, 'rgba(255, 105, 180, 0.3)');
+          // Gradient from start to end of path
+          const start = points[0];
+          const end = points[points.length - 1];
+          const gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+          gradient.addColorStop(0, 'white');
+          gradient.addColorStop(1, 'rgba(255, 105, 180, 0.3)');
 
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        const radius = 100 + 20 * Math.sin(frameCount * 0.05);
-        ctx.arc(
-          width / 2 + Math.sin(frameCount * 0.05) * 50,
-          height / 2 + Math.cos(frameCount * 0.05) * 50,
-          radius, 0, Math.PI * 2
-        );
-        ctx.fill();
-
-        frameCount++;
+          ctx.strokeStyle = gradient;
+          ctx.lineWidth = 10;
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
 
         requestAnimationFrame(draw);
       };
 
+      // Mouse move handler for canvas
+      const handleMove = (e: MouseEvent) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        points.push({ x, y });
+        if (points.length > MAX_POINTS) {
+          points.shift();
+        }
+      };
+      canvas.addEventListener('mousemove', handleMove);
       draw();
+      return () => {
+        canvas.removeEventListener('mousemove', handleMove);
+      };
     }
   }, []);
 
@@ -102,8 +115,7 @@ function App() {
 
   return (
     <div>
-      <h1>I saw the canvas glow</h1>
-      <h2>MouseMove edition</h2> 
+      <h1>I saw the lazo glow</h1>
       <h3>&gt; Discarded moves: <NumberToString number={discardedMoves} /></h3>
       <h3 data-testid="last-action">
         &gt; Last action: {(() => {
