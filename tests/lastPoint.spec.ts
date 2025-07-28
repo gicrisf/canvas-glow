@@ -70,4 +70,3 @@ test('capture and replay mouse movements on canvas', async ({ page }) => {
     expect(coordsAlmostEqual(actualCoords, expectedCoords)).toBe(true);
   }
 });
-3
