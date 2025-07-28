@@ -14,6 +14,7 @@ function App() {
   const discardedMoves = useStore((state) => state.discardedMoves);
   const actions = useStore((state) => state.actions);
   const updateLastAction = useStore((state) => state.updateLastAction);
+  const moves = useStore((state) => state.moves);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -129,12 +130,12 @@ function App() {
         <h3>All points received:</h3>
         <div data-testid="all-points" style={{ maxHeight: 200, overflowY: 'auto', fontFamily: 'monospace' }}>
           {(() => {
-            const actions = useStore((state) => state.actions);
-            return `(${actions.map((action) => {
-              const pointsSexpr = action.points && action.points.length > 0
-                ? `(${action.points.map(p => `(${p.X} ${p.Y})`).join(' ')})`
+            const moves = useStore((state) => state.moves);
+            return `(${moves.map((move) => {
+              const pointsSexpr = moves && moves.length > 0
+                ? `(${moves.map(p => `(${p.X} ${p.Y})`).join(' ')})`
                 : '()';
-              return `(${action.name} ${action.index} ${pointsSexpr})`;
+              return `(${pointsSexpr})`;
             }).join(' ')})`;
           })()}
         </div>

@@ -29,6 +29,7 @@ type State = {
     isLoadingMove: boolean;
     nodes: Point[];
     discardedMoves: number;
+    moves: Point[];
     actions: PwAction[];
     lastAction: PwAction;
 }
@@ -46,6 +47,7 @@ const initialState: State = {
     isLoadingMove: false,
     nodes: [],
     discardedMoves: 0,
+    moves: [],
     actions: [],
     lastAction: { name: 'openPage', index: 0, points: [] },
 }
@@ -115,6 +117,7 @@ export const useStore = create<State & Actions>()(
                         }, 250);
                     }).then(() => {
                         set((state) => {
+                            state.moves.push({ X: point.X, Y: point.Y });
                             state.lastAction.points.push({ X: point.X, Y: point.Y });
                             console.log(`Point received: (${point.X}, ${point.Y})`);
                             state.isLoadingMove = false;
