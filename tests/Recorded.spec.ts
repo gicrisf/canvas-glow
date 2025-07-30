@@ -1,57 +1,56 @@
-import { expect } from '@playwright/test';
+// import { expect } from '@playwright/test';
 import { test } from './test-setup';
 
-test('test', async ({ page, runAdvicedActions }) => {
+test('test', async ({ page }) => {
   await page.goto('http://localhost:5173/');
   await page.locator('canvas').click({
     position: {
-      x: 270,
-      y: 221
+      x: 440,
+      y: 206
     }
   });
   await page.locator('canvas').click({
     position: {
-      x: 466,
-      y: 279
+      x: 385,
+      y: 241
     }
   });
   await page.locator('canvas').click({
     position: {
-      x: 254,
-      y: 346
+      x: 550,
+      y: 210
     }
   });
   await page.locator('canvas').click({
     position: {
-      x: 547,
-      y: 270
+      x: 551,
+      y: 313
     }
   });
   await page.locator('canvas').click({
     position: {
-      x: 273,
-      y: 199
+      x: 358,
+      y: 235
     }
   });
   await page.locator('canvas').click({
     position: {
-      x: 604,
-      y: 247
+      x: 268,
+      y: 351
     }
   });
   await page.locator('canvas').click({
     position: {
-      x: 323,
-      y: 282
+      x: 634,
+      y: 38
     }
   });
   await page.locator('canvas').click({
     position: {
-      x: 489,
-      y: 273
+      x: 532,
+      y: 224
     }
   });
 
-  // Could be useful to add pieces at the end of the test
-  await runAdvicedActions();
+  // await expect(page.getByTestId('all-points')).toContainText('((openPage 0 ((966 412) (580 341) (710 325))) (click 0 ((671 432) (753 331))) (click 1 ((612 466) (676 425))) (click 2 ((380 557) (690 421) (809 488))) (click 3 ((606 661))) (click 4 ((622 479) (776 597))) (click 5 ((489 558) (799 535))) (click 6 ((888 307) (555 383))))');
 });
