@@ -20,14 +20,24 @@ type MouseClickOptions = {
 };
 // ./Redefining
 
-type AdvicedLocator = {
+type AdvicedLocatorClick = {
+    type: 'locator',
     originalObj: Locator,
-    originalProp: 'click',
     originalOptions: LocatorOptions,
     trail: Point[],
 }
 
-const advicedLocators: AdvicedLocator[] = [];
+type AdvicedMouseClick = {
+    type: 'mouse',
+    x: number,
+    y: number,
+    originalOptions: MouseClickOptions,
+    trail: Point[],
+}
+
+type AdvicedClick = AdvicedLocatorClick | AdvicedMouseClick;
+
+const advicedClicks: AdvicedClick[] = [];
 
 // Store the parsed actions from assertion text
 let capturedActions: PwAction[] = [];
@@ -36,8 +46,8 @@ let capturedActions: PwAction[] = [];
 function updateClicksWithTrails() {
     const clickActions = capturedActions.filter(action => action.name === 'click');
     
-    for (let i = 0; i < advicedLocators.length && i < clickActions.length; i++) {
-        advicedLocators[i].trail = clickActions[i].points;
+    for (let i = 0; i < advicedClicks.length && i < clickActions.length; i++) {
+        advicedClicks[i].trail = clickActions[i].points;
         console.log(`Updated click ${i} with ${clickActions[i].points.length} trail points:`, JSON.stringify(clickActions[i].points));
     }
 }
@@ -143,19 +153,44 @@ function createProxiedTrailGetter(originalLocator: Locator, testId: string | Reg
     });
 }
 
+function createProxiedMouse(originalMouse: Page['mouse']) {
+    return new Proxy(originalMouse, {
+        get(obj, prop) {
+            if (prop === 'click') {
+                return async (x: number, y: number, options?: MouseClickOptions) => {
+                    const adviced: AdvicedMouseClick = {
+                        type: 'mouse',
+                        x,
+                        y,
+                        originalOptions: options || {},
+                        trail: [] // Will be populated later
+                    };
+                    advicedClicks.push(adviced);
+                    console.log(`Stored mouse click ${advicedClicks.length - 1} at (${x}, ${y}) (trail will be added later)`);
+                };
+            }
+            return obj[prop];
+        },
+        set(obj, prop, value) {
+            obj[prop] = value;
+            return true;
+        }
+    });
+}
+
 function createProxiedLocator (originalLocator: Locator) {
     const proxiedLocator = new Proxy(originalLocator, {
         get(obj, prop) {
             if (prop === 'click') {
                 return async (options: LocatorOptions) => {
-                    const adviced: AdvicedLocator = {
+                    const adviced: AdvicedLocatorClick = {
+                        type: 'locator',
                         originalObj: obj,
-                        originalProp: prop,
                         originalOptions: options,
                         trail: [] // Will be populated later
                     };
-                    advicedLocators.push(adviced);
-                    console.log(`Stored click ${advicedLocators.length - 1} (trail will be added later)`);
+                    advicedClicks.push(adviced);
+                    console.log(`Stored click ${advicedClicks.length - 1} (trail will be added later)`);
                 }
             }
         },
@@ -169,7 +204,7 @@ function createProxiedLocator (originalLocator: Locator) {
 }
 
 type ProxiedPage = Page & {
-    advicedLocators: AdvicedLocator[];
+    advicedClicks: AdvicedClick[];
     executeStoredClicks: () => Promise<void>;
     capturedActions: PwAction[];
 }
@@ -188,6 +223,8 @@ function createProxiedPage (originalPage: Page) {
                     const originalLocator = obj.getByTestId(testId);
                     return createProxiedTrailGetter(originalLocator, testId);
                 }
+            } else if (prop === 'mouse') {
+                return createProxiedMouse(obj.mouse);
             }
             return obj[prop];
         },
@@ -198,8 +235,8 @@ function createProxiedPage (originalPage: Page) {
         }
     });
     
-    // Expose the recordedClickOptions array on the proxied page
-    (proxiedPage as ProxiedPage).advicedLocators = advicedLocators;
+    // Expose the recorded clicks array on the proxied page
+    (proxiedPage as ProxiedPage).advicedClicks = advicedClicks;
     
     // Expose the captured actions
     Object.defineProperty(proxiedPage, 'capturedActions', {
@@ -210,13 +247,19 @@ function createProxiedPage (originalPage: Page) {
     
     // Add method to execute all stored clicks
     (proxiedPage as ProxiedPage).executeStoredClicks = async () => {
-        console.log(`Executing ${advicedLocators.length} stored clicks...`);
-        for (let i = 0; i < advicedLocators.length; i++) {
-            const adviced = advicedLocators[i];
-            console.log(`Executing click ${i + 1}/${advicedLocators.length}`);
+        console.log(`Executing ${advicedClicks.length} stored clicks...`);
+        for (let i = 0; i < advicedClicks.length; i++) {
+            const adviced = advicedClicks[i];
+            console.log(`Executing click ${i + 1}/${advicedClicks.length}`);
             
             // Execute the click first
-            await adviced.originalObj.click(adviced.originalOptions);
+            if (adviced.type === 'mouse') {
+                // Direct mouse click
+                await originalPage.mouse.click(adviced.x, adviced.y, adviced.originalOptions);
+            } else {
+                // Locator click
+                await adviced.originalObj.click(adviced.originalOptions);
+            }
             
             // Post-advising: simulate mouse movements along the trail
             console.log(`Simulating trail with ${adviced.trail.length} points`);
