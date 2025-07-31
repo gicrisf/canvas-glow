@@ -1,4 +1,4 @@
-import { test as base } from '@playwright/test';
+import { test as base, expect as originalExpect } from '@playwright/test';
 import { Page, Locator } from '@playwright/test';
 
 // Redefining rn
@@ -29,6 +29,19 @@ type AdvicedLocator = {
 
 const advicedLocators: AdvicedLocator[] = [];
 
+// Store the parsed actions from assertion text
+let capturedActions: PwAction[] = [];
+
+// Update stored clicks with trail data from captured actions
+function updateClicksWithTrails() {
+    const clickActions = capturedActions.filter(action => action.name === 'click');
+    
+    for (let i = 0; i < advicedLocators.length && i < clickActions.length; i++) {
+        advicedLocators[i].trail = clickActions[i].points;
+        console.log(`Updated click ${i} with ${clickActions[i].points.length} trail points:`, JSON.stringify(clickActions[i].points));
+    }
+}
+
 type PwActionName =
     'openPage' |
     'check' |
@@ -50,6 +63,86 @@ type PwAction = {
     points: Point[];
 };
 
+function createProxiedExpect(originalExpect: typeof originalExpect) {
+    // Helper to parse s-expressions
+    const parseSexprActions = (sexpr: string): PwAction[] => {
+        const trimmed = sexpr.trim().replace(/^\(|\)$/g, '');
+        const actionRegex = /\((\w+)\s+(\d+)\s+\(((?:\(\d+\s+\d+\)\s*)*)\)\)/g;
+        const result: PwAction[] = [];
+        let match;
+        while ((match = actionRegex.exec(trimmed)) !== null) {
+            const [, action, index, pointsStr] = match;
+            const points: Point[] = [];
+            const pointRegex = /\((\d+)\s+(\d+)\)/g;
+            let pointMatch;
+            while ((pointMatch = pointRegex.exec(pointsStr)) !== null) {
+                points.push({ X: Number(pointMatch[1]), Y: Number(pointMatch[2]) });
+            }
+            result.push({ name: action as PwActionName, index: Number(index), points });
+        }
+        return result;
+    };
+
+    return function proxiedExpect(actual: any) {
+        const expectation = originalExpect(actual);
+        
+        return new Proxy(expectation, {
+            get(obj, prop) {
+                const originalMethod = obj[prop];
+                
+                if (typeof originalMethod === 'function' && prop === 'toContainText') {
+                    return function(...args: any[]) {
+                        // Parse the text and store the resulting actions
+                        const sexprText = args[0];
+                        try {
+                            capturedActions = parseSexprActions(sexprText);
+                            console.log('Captured and parsed actions:', capturedActions);
+                            // Update stored clicks with trail data
+                            updateClicksWithTrails();
+                        } catch (error) {
+                            console.warn('Failed to parse s-expression:', sexprText, error);
+                            capturedActions = [];
+                        }
+                        return Promise.resolve(); // Return resolved promise to avoid assertion
+                    };
+                }
+                
+                return originalMethod;
+            }
+        });
+    };
+}
+
+function createProxiedTrailGetter(originalLocator: Locator, testId: string | RegExp) {
+    return new Proxy(originalLocator, {
+        get(obj, prop) {
+            // Don't log internal properties that Playwright uses for type checking
+            if (prop !== 'constructor' && prop !== Symbol.toStringTag && typeof prop === 'string') {
+                console.log(`Method called on getByTestId('${testId}'): ${String(prop)}`);
+            }
+            
+            // Capture the original method/property
+            const originalMethod = obj[prop];
+            
+            // If it's a function and not a constructor, wrap it to log the call
+            if (typeof originalMethod === 'function' && prop !== 'constructor') {
+                // I don't know about this rest, but I'll leave it for a while
+                return function(...args: any[]) {
+                    console.log(`Calling ${String(prop)} with args:`, args);
+                    return originalMethod.apply(obj, args);
+                };
+            }
+            
+            // If not, return the original property as-is
+            return originalMethod;
+        },
+        set(obj, prop, value) {
+            obj[prop] = value;
+            return true;
+        }
+    });
+}
+
 function createProxiedLocator (originalLocator: Locator) {
     const proxiedLocator = new Proxy(originalLocator, {
         get(obj, prop) {
@@ -59,13 +152,10 @@ function createProxiedLocator (originalLocator: Locator) {
                         originalObj: obj,
                         originalProp: prop,
                         originalOptions: options,
-                        // Hardcoded during development
-                        trail: [{ X: 659, Y: 567 }, { X: 584, Y: 739} ]
+                        trail: [] // Will be populated later
                     };
                     advicedLocators.push(adviced);
-                    // Debugging lines
-                    // const last = advicedLocators[advicedLocators.length - 1];
-                    console.log(advicedLocators);
+                    console.log(`Stored click ${advicedLocators.length - 1} (trail will be added later)`);
                 }
             }
         },
@@ -81,6 +171,7 @@ function createProxiedLocator (originalLocator: Locator) {
 type ProxiedPage = Page & {
     advicedLocators: AdvicedLocator[];
     executeStoredClicks: () => Promise<void>;
+    capturedActions: PwAction[];
 }
 
 function createProxiedPage (originalPage: Page) {
@@ -92,18 +183,10 @@ function createProxiedPage (originalPage: Page) {
                     return createProxiedLocator(originalLocator);
                 }
             } else if (prop == 'getByTestId') {
-                // now check if it's all-point
                 console.log("getting by test id!");
-                // obj is original page!
-                // FIXME
                 return (testId: string | RegExp) => {
-                    // TODO should be 'all-trails' or something
-                    if selector == 'all-points' {
-                        // Don't want to save the original, just the data
-                        return createProxiedTrailGetter(obj.getByTestId(selector, options));
-                        // TODO verify
-                        return true;
-                    }
+                    const originalLocator = obj.getByTestId(testId);
+                    return createProxiedTrailGetter(originalLocator, testId);
                 }
             }
             return obj[prop];
@@ -117,6 +200,13 @@ function createProxiedPage (originalPage: Page) {
     
     // Expose the recordedClickOptions array on the proxied page
     (proxiedPage as ProxiedPage).advicedLocators = advicedLocators;
+    
+    // Expose the captured actions
+    Object.defineProperty(proxiedPage, 'capturedActions', {
+        get: () => capturedActions,
+        enumerable: true,
+        configurable: true
+    });
     
     // Add method to execute all stored clicks
     (proxiedPage as ProxiedPage).executeStoredClicks = async () => {
@@ -140,9 +230,7 @@ function createProxiedPage (originalPage: Page) {
     return proxiedPage;
 }
 
-type ExtendedBase = {
-    parseSexprActions: (sexpr: string) => PwAction[];
-}
+type ExtendedBase = {}
 
 export const test = base.extend<ExtendedBase>({
     page: async({ page }, use) => {
@@ -150,3 +238,5 @@ export const test = base.extend<ExtendedBase>({
         await use(proxiedPage);
     }
 });
+
+export const expect = createProxiedExpect(originalExpect);

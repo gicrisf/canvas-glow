@@ -1,5 +1,4 @@
-// import { expect } from '@playwright/test';
-import { test } from './test-setup';
+import { test, expect } from './test-setup';
 
 test('test', async ({ page }) => {
   await page.goto('http://localhost:5173/');
@@ -52,7 +51,6 @@ test('test', async ({ page }) => {
     }
   });
 
+  await expect(page.getByTestId('all-points')).toContainText('((openPage 0 ((966 412) (580 341) (710 325))) (click 0 ((671 432) (753 331))) (click 1 ((612 466) (676 425))) (click 2 ((380 557) (690 421) (809 488))) (click 3 ((606 661))) (click 4 ((622 479) (776 597))) (click 5 ((489 558) (799 535))) (click 6 ((888 307) (555 383))))');
   await page.executeStoredClicks();
-  await page.getByTestId('all-points');
-  // await expect(page.getByTestId('all-points')).toContainText('((openPage 0 ((966 412) (580 341) (710 325))) (click 0 ((671 432) (753 331))) (click 1 ((612 466) (676 425))) (click 2 ((380 557) (690 421) (809 488))) (click 3 ((606 661))) (click 4 ((622 479) (776 597))) (click 5 ((489 558) (799 535))) (click 6 ((888 307) (555 383))))');
 });
