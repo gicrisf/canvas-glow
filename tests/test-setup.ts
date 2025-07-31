@@ -20,35 +20,24 @@ type MouseClickOptions = {
 };
 // ./Redefining
 
-type AdvicedLocatorClick = {
-    type: 'locator',
-    originalObj: Locator,
-    originalOptions: LocatorOptions,
-    trail: Point[],
+type ActionLambda = (() => Promise<void>) & {
+    actionType: string;
+    trail?: Point[];
 }
 
-type AdvicedMouseClick = {
-    type: 'mouse',
-    x: number,
-    y: number,
-    originalOptions: MouseClickOptions,
-    trail: Point[],
-}
-
-type AdvicedClick = AdvicedLocatorClick | AdvicedMouseClick;
-
-const advicedClicks: AdvicedClick[] = [];
+const actionStream: ActionLambda[] = [];
 
 // Store the parsed actions from assertion text
 let capturedActions: PwAction[] = [];
 
-// Update stored clicks with trail data from captured actions
+// Update click lambdas with trail data from captured actions
 function updateClicksWithTrails() {
     const clickActions = capturedActions.filter(action => action.name === 'click');
+    const clickLambdas = actionStream.filter(lambda => lambda.actionType === 'click');
     
-    for (let i = 0; i < advicedClicks.length && i < clickActions.length; i++) {
-        advicedClicks[i].trail = clickActions[i].points;
-        console.log(`Updated click ${i} with ${clickActions[i].points.length} trail points:`, JSON.stringify(clickActions[i].points));
+    for (let i = 0; i < clickLambdas.length && i < clickActions.length; i++) {
+        clickLambdas[i].trail = clickActions[i].points;
+        console.log(`Updated click lambda ${i} with ${clickActions[i].points.length} trail points:`, JSON.stringify(clickActions[i].points));
     }
 }
 
@@ -153,20 +142,39 @@ function createProxiedTrailGetter(originalLocator: Locator, testId: string | Reg
     });
 }
 
-function createProxiedMouse(originalMouse: Page['mouse']) {
+function createProxiedMouse(originalMouse: Page['mouse'], originalPage: Page) {
     return new Proxy(originalMouse, {
         get(obj, prop) {
             if (prop === 'click') {
                 return async (x: number, y: number, options?: MouseClickOptions) => {
-                    const adviced: AdvicedMouseClick = {
-                        type: 'mouse',
-                        x,
-                        y,
-                        originalOptions: options || {},
-                        trail: [] // Will be populated later
-                    };
-                    advicedClicks.push(adviced);
-                    console.log(`Stored mouse click ${advicedClicks.length - 1} at (${x}, ${y}) (trail will be added later)`);
+                    const lambda = Object.assign(
+                        async () => {
+                            await originalMouse.click(x, y, options);
+                            // Post-action: simulate mouse movements along the trail if available
+                            if (lambda.trail) {
+                                console.log(`Simulating trail with ${lambda.trail.length} points`);
+                                for (const point of lambda.trail) {
+                                    await originalPage.mouse.move(point.X, point.Y);
+                                }
+                            }
+                        },
+                        { actionType: 'click' }
+                    ) as ActionLambda;
+                    
+                    actionStream.push(lambda);
+                    console.log(`Stored mouse click lambda ${actionStream.length - 1} at (${x}, ${y})`);
+                };
+            } else if (prop === 'move') {
+                return async (x: number, y: number, options?: any) => {
+                    const lambda = Object.assign(
+                        async () => {
+                            await originalMouse.move(x, y, options);
+                        },
+                        { actionType: 'move' }
+                    ) as ActionLambda;
+                    
+                    actionStream.push(lambda);
+                    console.log(`Stored mouse move lambda ${actionStream.length - 1} to (${x}, ${y})`);
                 };
             }
             return obj[prop];
@@ -178,19 +186,52 @@ function createProxiedMouse(originalMouse: Page['mouse']) {
     });
 }
 
-function createProxiedLocator (originalLocator: Locator) {
+function createProxiedKeyboard(originalKeyboard: Page['keyboard']) {
+    return new Proxy(originalKeyboard, {
+        get(obj, prop) {
+            if (prop === 'press') {
+                return async (key: string, options?: any) => {
+                    const lambda = Object.assign(
+                        async () => {
+                            await originalKeyboard.press(key, options);
+                        },
+                        { actionType: 'keypress' }
+                    ) as ActionLambda;
+                    
+                    actionStream.push(lambda);
+                    console.log(`Stored keyboard press lambda ${actionStream.length - 1} for key: ${key}`);
+                };
+            }
+            return obj[prop];
+        },
+        set(obj, prop, value) {
+            obj[prop] = value;
+            return true;
+        }
+    });
+}
+
+function createProxiedLocator (originalLocator: Locator, originalPage: Page) {
     const proxiedLocator = new Proxy(originalLocator, {
         get(obj, prop) {
             if (prop === 'click') {
                 return async (options: LocatorOptions) => {
-                    const adviced: AdvicedLocatorClick = {
-                        type: 'locator',
-                        originalObj: obj,
-                        originalOptions: options,
-                        trail: [] // Will be populated later
-                    };
-                    advicedClicks.push(adviced);
-                    console.log(`Stored click ${advicedClicks.length - 1} (trail will be added later)`);
+                    const lambda = Object.assign(
+                        async () => {
+                            await obj.click(options);
+                            // Post-action: simulate mouse movements along the trail if available
+                            if (lambda.trail) {
+                                console.log(`Simulating trail with ${lambda.trail.length} points`);
+                                for (const point of lambda.trail) {
+                                    await originalPage.mouse.move(point.X, point.Y);
+                                }
+                            }
+                        },
+                        { actionType: 'click' }
+                    ) as ActionLambda;
+                    
+                    actionStream.push(lambda);
+                    console.log(`Stored locator click lambda ${actionStream.length - 1}`);
                 }
             }
         },
@@ -204,8 +245,8 @@ function createProxiedLocator (originalLocator: Locator) {
 }
 
 type ProxiedPage = Page & {
-    advicedClicks: AdvicedClick[];
-    executeStoredClicks: () => Promise<void>;
+    actionStream: ActionLambda[];
+    executeActionStream: () => Promise<void>;
     capturedActions: PwAction[];
 }
 
@@ -215,7 +256,7 @@ function createProxiedPage (originalPage: Page) {
             if (prop === 'locator') {
                 return (selector: string, options?: LocatorOptions) => {
                     const originalLocator = obj.locator(selector, options);
-                    return createProxiedLocator(originalLocator);
+                    return createProxiedLocator(originalLocator, originalPage);
                 }
             } else if (prop == 'getByTestId') {
                 console.log("getting by test id!");
@@ -224,7 +265,21 @@ function createProxiedPage (originalPage: Page) {
                     return createProxiedTrailGetter(originalLocator, testId);
                 }
             } else if (prop === 'mouse') {
-                return createProxiedMouse(obj.mouse);
+                return createProxiedMouse(obj.mouse, originalPage);
+            } else if (prop === 'keyboard') {
+                return createProxiedKeyboard(obj.keyboard);
+            } else if (prop === 'waitForTimeout') {
+                return async (timeout: number) => {
+                    const lambda = Object.assign(
+                        async () => {
+                            await originalPage.waitForTimeout(timeout);
+                        },
+                        { actionType: 'wait' }
+                    ) as ActionLambda;
+                    
+                    actionStream.push(lambda);
+                    console.log(`Stored waitForTimeout lambda ${actionStream.length - 1} for ${timeout}ms`);
+                };
             }
             return obj[prop];
         },
@@ -235,8 +290,8 @@ function createProxiedPage (originalPage: Page) {
         }
     });
     
-    // Expose the recorded clicks array on the proxied page
-    (proxiedPage as ProxiedPage).advicedClicks = advicedClicks;
+    // Expose the action stream on the proxied page
+    (proxiedPage as ProxiedPage).actionStream = actionStream;
     
     // Expose the captured actions
     Object.defineProperty(proxiedPage, 'capturedActions', {
@@ -245,29 +300,15 @@ function createProxiedPage (originalPage: Page) {
         configurable: true
     });
     
-    // Add method to execute all stored clicks
-    (proxiedPage as ProxiedPage).executeStoredClicks = async () => {
-        console.log(`Executing ${advicedClicks.length} stored clicks...`);
-        for (let i = 0; i < advicedClicks.length; i++) {
-            const adviced = advicedClicks[i];
-            console.log(`Executing click ${i + 1}/${advicedClicks.length}`);
-            
-            // Execute the click first
-            if (adviced.type === 'mouse') {
-                // Direct mouse click
-                await originalPage.mouse.click(adviced.x, adviced.y, adviced.originalOptions);
-            } else {
-                // Locator click
-                await adviced.originalObj.click(adviced.originalOptions);
-            }
-            
-            // Post-advising: simulate mouse movements along the trail
-            console.log(`Simulating trail with ${adviced.trail.length} points`);
-            for (const point of adviced.trail) {
-                await originalPage.mouse.move(point.X, point.Y);
-            }
+    // Add method to execute all stored actions
+    (proxiedPage as ProxiedPage).executeActionStream = async () => {
+        console.log(`Executing ${actionStream.length} stored actions...`);
+        for (let i = 0; i < actionStream.length; i++) {
+            const action = actionStream[i];
+            console.log(`Executing action ${i + 1}/${actionStream.length} (${action.actionType})`);
+            await action();
         }
-        console.log('All stored clicks executed');
+        console.log('All stored actions executed');
     };
     
     return proxiedPage;
