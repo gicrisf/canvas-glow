@@ -80,6 +80,7 @@ function createProxiedLocator (originalLocator: Locator) {
 
 type ProxiedPage = Page & {
     advicedLocators: AdvicedLocator[];
+    executeStoredClicks: () => Promise<void>;
 }
 
 function createProxiedPage (originalPage: Page) {
@@ -94,13 +95,26 @@ function createProxiedPage (originalPage: Page) {
             return obj[prop];
         },
         set(obj, prop, value) {
-            console.log(`setting property: ${String(prop)} to ${value}`);
+            // console.log(`setting property: ${String(prop)} to ${value}`);
             obj[prop] = value;
             return true
         }
     });
+    
     // Expose the recordedClickOptions array on the proxied page
     (proxiedPage as ProxiedPage).advicedLocators = advicedLocators;
+    
+    // Add method to execute all stored clicks
+    (proxiedPage as ProxiedPage).executeStoredClicks = async () => {
+        console.log(`Executing ${advicedLocators.length} stored clicks...`);
+        for (let i = 0; i < advicedLocators.length; i++) {
+            const adviced = advicedLocators[i];
+            console.log(`Executing click ${i + 1}/${advicedLocators.length}`);
+            await adviced.originalObj.click(adviced.originalOptions);
+        }
+        console.log('All stored clicks executed');
+    };
+    
     return proxiedPage;
 }
 
