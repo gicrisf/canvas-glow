@@ -60,7 +60,7 @@ function createProxiedLocator (originalLocator: Locator) {
                         originalProp: prop,
                         originalOptions: options,
                         // Hardcoded during development
-                        trail: [[659, 567], [584, 739]]
+                        trail: [{ X: 659, Y: 567 }, { X: 584, Y: 739} ]
                     };
                     advicedLocators.push(adviced);
                     // Debugging lines
@@ -110,7 +110,15 @@ function createProxiedPage (originalPage: Page) {
         for (let i = 0; i < advicedLocators.length; i++) {
             const adviced = advicedLocators[i];
             console.log(`Executing click ${i + 1}/${advicedLocators.length}`);
+            
+            // Execute the click first
             await adviced.originalObj.click(adviced.originalOptions);
+            
+            // Post-advising: simulate mouse movements along the trail
+            console.log(`Simulating trail with ${adviced.trail.length} points`);
+            for (const point of adviced.trail) {
+                await originalPage.mouse.move(point.X, point.Y);
+            }
         }
         console.log('All stored clicks executed');
     };
