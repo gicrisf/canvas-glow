@@ -91,6 +91,20 @@ function createProxiedPage (originalPage: Page) {
                     const originalLocator = obj.locator(selector, options);
                     return createProxiedLocator(originalLocator);
                 }
+            } else if (prop == 'getByTestId') {
+                // now check if it's all-point
+                console.log("getting by test id!");
+                // obj is original page!
+                // FIXME
+                return (testId: string | RegExp) => {
+                    // TODO should be 'all-trails' or something
+                    if selector == 'all-points' {
+                        // Don't want to save the original, just the data
+                        return createProxiedTrailGetter(obj.getByTestId(selector, options));
+                        // TODO verify
+                        return true;
+                    }
+                }
             }
             return obj[prop];
         },
