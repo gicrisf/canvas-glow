@@ -30,26 +30,8 @@ const actionStream: ActionLambda[] = [];
 // Store the parsed actions from assertion text
 let capturedActions: PwAction[] = [];
 
-// Update click lambdas with trail data from captured actions
-function updateClicksWithTrails() {
-    const clickActions = capturedActions.filter(action => action.name === 'click');
-    const clickLambdas = actionStream.filter(lambda => lambda.actionType === 'click');
-    
-    for (let i = 0; i < clickLambdas.length && i < clickActions.length; i++) {
-        clickLambdas[i].trail = clickActions[i].points;
-        console.log(`Updated click lambda ${i} with ${clickActions[i].points.length} trail points:`, JSON.stringify(clickActions[i].points));
-    }
-}
-
-type PwActionName =
-    'openPage' |
-    'check' |
-    'click' | 
-    'fill' |
-    'press' |
-    'select' |
-    'uncheck' |
-    'setInputFiles';
+const PW_ACTION_NAMES = ['openPage', 'check', 'click', 'fill', 'press', 'select', 'uncheck', 'setInputFiles'] as const;
+type PwActionName = typeof PW_ACTION_NAMES[number];
 
 type Point = {
     X: number;
@@ -61,6 +43,21 @@ type PwAction = {
     index: number;
     points: Point[];
 };
+
+// Update action lambdas with trail data from captured actions
+function updateActionsWithTrails() {
+    const actionTypes = PW_ACTION_NAMES;
+    
+    for (const actionType of actionTypes) {
+        const actions = capturedActions.filter(action => action.name === actionType);
+        const lambdas = actionStream.filter(lambda => lambda.actionType === actionType);
+        
+        for (let i = 0; i < lambdas.length && i < actions.length; i++) {
+            lambdas[i].trail = actions[i].points;
+            console.log(`Updated ${actionType} lambda ${i} with ${actions[i].points.length} trail points:`, JSON.stringify(actions[i].points));
+        }
+    }
+}
 
 function createProxiedExpect(originalExpect: typeof originalExpect) {
     // Helper to parse s-expressions
@@ -96,8 +93,8 @@ function createProxiedExpect(originalExpect: typeof originalExpect) {
                         try {
                             capturedActions = parseSexprActions(sexprText);
                             console.log('Captured and parsed actions:', capturedActions);
-                            // Update stored clicks with trail data
-                            updateClicksWithTrails();
+                            // Update stored actions with trail data
+                            updateActionsWithTrails();
                         } catch (error) {
                             console.warn('Failed to parse s-expression:', sexprText, error);
                             capturedActions = [];
@@ -186,23 +183,27 @@ function createProxiedMouse(originalMouse: Page['mouse'], originalPage: Page) {
     });
 }
 
-function createProxiedKeyboard(originalKeyboard: Page['keyboard']) {
-    return new Proxy(originalKeyboard, {
+function createGeneralProxy(originalObject: any, objectName: string) {
+    return new Proxy(originalObject, {
         get(obj, prop) {
-            if (prop === 'press') {
-                return async (key: string, options?: any) => {
+            const originalMethod = obj[prop];
+            
+            // If it's a function, wrap it to store in lambda stream
+            if (typeof originalMethod === 'function' && typeof prop === 'string') {
+                return async (...args: any[]) => {
                     const lambda = Object.assign(
                         async () => {
-                            await originalKeyboard.press(key, options);
+                            await originalMethod.apply(obj, args);
                         },
-                        { actionType: 'keypress' }
+                        { actionType: `${objectName}.${prop}` }
                     ) as ActionLambda;
                     
                     actionStream.push(lambda);
-                    console.log(`Stored keyboard press lambda ${actionStream.length - 1} for key: ${key}`);
+                    console.log(`Stored ${objectName}.${prop} lambda ${actionStream.length - 1}`);
                 };
             }
-            return obj[prop];
+            
+            return originalMethod;
         },
         set(obj, prop, value) {
             obj[prop] = value;
@@ -267,18 +268,42 @@ function createProxiedPage (originalPage: Page) {
             } else if (prop === 'mouse') {
                 return createProxiedMouse(obj.mouse, originalPage);
             } else if (prop === 'keyboard') {
-                return createProxiedKeyboard(obj.keyboard);
-            } else if (prop === 'waitForTimeout') {
-                return async (timeout: number) => {
+                return createGeneralProxy(obj.keyboard, 'keyboard');
+            } else if (prop === 'goto') {
+                return async (url: string, options?: any) => {
                     const lambda = Object.assign(
                         async () => {
-                            await originalPage.waitForTimeout(timeout);
+                            await obj.goto(url, options);
+                            // Post-action: simulate mouse movements along the trail if available
+                            if (lambda.trail) {
+                                console.log(`Simulating openPage trail with ${lambda.trail.length} points`);
+                                for (const point of lambda.trail) {
+                                    await originalPage.mouse.move(point.X, point.Y);
+                                }
+                            }
                         },
-                        { actionType: 'wait' }
+                        { actionType: 'openPage' }
                     ) as ActionLambda;
                     
                     actionStream.push(lambda);
-                    console.log(`Stored waitForTimeout lambda ${actionStream.length - 1} for ${timeout}ms`);
+                    console.log(`Stored goto (openPage) lambda ${actionStream.length - 1} for URL: ${url}`);
+                };
+            } else if (prop === 'executeActionStream') {
+                // Don't proxy this - execute immediately
+                return obj[prop];
+            } else if (typeof obj[prop] === 'function' && typeof prop === 'string') {
+                // General handler for any other page methods
+                const originalMethod = obj[prop];
+                return async (...args: any[]) => {
+                    const lambda = Object.assign(
+                        async () => {
+                            await originalMethod.apply(obj, args);
+                        },
+                        { actionType: `page.${prop}` }
+                    ) as ActionLambda;
+                    
+                    actionStream.push(lambda);
+                    console.log(`Stored page.${prop} lambda ${actionStream.length - 1}`);
                 };
             }
             return obj[prop];
