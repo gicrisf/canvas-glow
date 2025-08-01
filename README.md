@@ -59,7 +59,6 @@ npx playwright test moveme
 
 Vedi video dimostrativo:
 
-<video src="https://do-app-01.it.esaote.priv/ESAOTE_US/9da48d28-4209-4b9c-8e4d-c38323eb7abd/_apis/git/repositories/6a301a7f-2ed4-4b48-afea-ffde55770f85/items?path=/.attachments/codegen-01.mp4" width=400 controls>
+<video src="https://do-app-01.it.esaote.priv/ESAOTE_US/9da48d28-4209-4b9c-8e4d-c38323eb7abd/_apis/git/repositories/6a301a7f-2ed4-4b48-afea-ffde55770f85/items?path=/.attachments/codegen-01.mp4" width=800 controls>
 </video>
-![](https://do-app-01.it.esaote.priv/ESAOTE_US/9da48d28-4209-4b9c-8e4d-c38323eb7abd/_apis/git/repositories/6a301a7f-2ed4-4b48-afea-ffde55770f85/items?path=/.attachments/codegen-01.mp4)
 
