@@ -1,0 +1,551 @@
+* I saw the Lazo Glow
+
+Partiamo dal caso di un lazo, come quello che potremmo avere nel componente misure.
+
+Ho letteralmente estrapolato la logica del lazo e semplificata per funzionare in questo contesto. Obiettivo:
+
+#+begin_quote
+Registrare con PW le seguenti azioni:
+- Click ed altre azioni supportate di default
+- Mousemoves (non supportate dal recorder)
+#+end_quote
+
+Perche' sottolineo che non sono supportate dal *recorder*? Perche', in realta', l'engine di pw supporta le mousemoves. E' molto semplice scrivere uno script di pw che esegua delle mousemove, praticamente basta passargli un array. Vediamo un esempio molto semplice.
+
+#+begin_src typescript
+// Import playwright
+import { test, expect } from '@playwright/test';
+
+// We want to see the movement
+test.use({ headless: false });
+
+// Define the test
+test('play mouse movements on canvas', async ({ page }) => {
+    // Open react app
+    await page.goto('http://localhost:5173');
+    // Find the canvas
+    const canvas = await page.locator('canvas');
+    // Find the boundings
+    const boundingBox = await canvas.boundingBox();
+
+    if (boundingBox) {
+        // Define the coordinates inside the boundings
+        const points = [
+            // Start from the center
+            [boundingBox.x + boundingBox.width / 2,
+             boundingBox.y + boundingBox.height / 2],
+            // Go to (100 100)
+            [boundingBox.x + 100, boundingBox.y + 100],
+            // Go to (200 200)
+            [boundingBox.x + 200, boundingBox.y + 200],
+            // Go to (300 300)
+            [boundingBox.x + 300, boundingBox.y + 300],
+        ];
+
+        // For each point...
+        for (const [x, y] of points) {
+            // Move the cursor
+            await page.mouse.move(x, y);
+            // Wait before moving again
+            await page.waitForTimeout(1000);
+        }
+    }
+});
+#+end_src
+
+Run the test:
+
+#+begin_src
+npx playwright test moveme
+#+end_src
+
+> Allego video dimostrativo
+
+Success!
+
+Questo implica che e' sufficiente un array di coordinate per indurre playwright ad eseguire qualunque test che coinvolge il movimento del mouse. Veniamo alla nostra situazione: il componente che vogliamo monitorare e' sotto il nostro controllo. Potendone modificare la codebase, possiamo anche fare in modo che catturi queste coordinate per conto nostro e che le scriva da qualche parte. Potrebbe:
+- Loggarle
+- Mostrarle a schermo
+- Inviarle ad un server
+- Popolare un campo dello storage del browser
+- Scriverle in un elemento html off screen (nascosto all'utente ma visibile a playwright)
+
+In linea di principio, una qualunque di queste possibilita' consente al tester di eseguire una serie di azioni, copiare l'array di coordinate e spiegare all'engine di playwright quando eseguire delle mousemove (prima e dopo quali altre azioni).
+
+Nel nostro caso, pero', abbiamo pensato di agevolarci ulteriormente utilizzando un tool messo a disposizione da PW, cioe' codegen, il recorder visuale di playwright. Proviamolo subito sulla nostra app (presupponendo sia hostata da Vite nella porta di default) lanciando:
+
+#+begin_src
+npx playwright codegen http://localhost:5173
+#+end_src
+
+Come funziona il recorder? Molto semplice:
+- Cattura una serie di azioni
+- Sfrutta un tool a scelta tra quelli messi a disposizione dal backend di playwright per generare uno script di test
+
+Nel nostro caso, selezionando il target di default (Test Runner) ad esempio:
+
+#+begin_src typescript
+import { test, expect } from '@playwright/test';
+
+test('test', async ({ page }) => {
+  await page.goto('http://localhost:5173/');
+  await page.locator('canvas').click({
+    position: {
+      x: 345,
+      y: 287
+    }
+  });
+  await page.locator('#root').click();
+  await page.locator('canvas').click({
+    position: {
+      x: 332,
+      y: 289
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 423,
+      y: 212
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 564,
+      y: 143
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 436,
+      y: 303
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 674,
+      y: 353
+    }
+  });
+});
+#+end_src
+
+Direi che dovrebbe gia' risultare familiare:
+- Si importa playwright
+- Si definisce un test
+- Si passa un oggetto contenente almeno una page
+- Si apre l'app all'indirizzo localhost
+- Si individua il canvas e si clicca su vari punti con coordinate x/y precise
+
+Fine del test generato.
+
+> Allego video che dimostra il funzionamento di codegen.
+
+Notate qualcosa? Non c'e' traccia dei movimenti del mouse.
+
+Perche'?
+Perche', nei casi considerati da codegen, l'idea e' quella di registrare l'interazione con una pagina web e riprodurla nel modo piu' efficiente possibile. Non ha quasi mai senso riprodurre i movimenti del mouse in quel contesto. Renderebbe i test estremamente (ed inutilmente) lenti. A dirla tutta, questo vale anche per la maggioranza dei nostri test sull'ecografo.
+
+Noi, d'altra parte, abbiamo dei casi eccezionali in cui, al fine di riprodurre al meglio il lavoro dell'utente sull'ecografo, e' bene anche passare i movimenti del cursore ed adeguarsi ai tempi richiesti dall'operatore. Quindi? Cosa si fa? Come sempre, dipende. Abbiamo varie possibilita'.
+
+1. Estendere il recorder perche' catturi anche i movimenti del mouse
+2. Cercare di automatizzare il passaggio manuale descritto sopra
+
+La prima opzione e' resa possibile dal fatto che playwright e' un progetto totalmente open source, quindi si presta a fork e sviluppi paralleli. D'altra parte, e' un progetto open source molto recente, quindi in costante (e rapido) sviluppo, grazie ai contributi sia di Microsoft che dall'estesa community che sta crescendo intorno al progetto. La realizzazione di un fork, quindi, richiede:
+- L'acquisizione di una certa padronanza nella gestione della codebase di playwright, per lo meno nelle aree circoscritte alle nostre necessita'
+- Un certo impegno per mantenere il codice allineato allo stream principale
+- L'impiego del fork nelle porzioni della pipeline che necessitano delle estensioni da noi introdotte; per semplicita', potremmo immaginare di impiegarlo su tutta la pipeline.
+
+Veniamo quindi alla seconda opzione. Questa, in poche parole, puo' essere riassunta in un modo: spostiamo la responsabilita' della registrazione dei movimenti del mouse dal recorder di playwright al componente stesso. Potremmo dire che il componente frontend da noi sviluppato acquisisce capacita' di auto-osservazione: vogliamo un componente relativamente senziente. Si muove il mouse? Sfrutta quel movimento per le proprie funzionalita', quindi, contemporaneamente, si occupa di conservare delle informazioni legate al proprio moto in uno store a nostra scelta, confidando che qualcuno in futuro ne faccia buon uso. Quel qualcuno, in ultima istanza, non puo' che essere playwright. Ma, se non manualmente, come possiamo passare quelle coordinate allo script ed assicurarci che siano collocate nei punti giusti?
+
+Pur non abbandonando la prima opzione, per ora cerchiamo di focalizzarci su questa seconda possibilita', immaginando ogni strada possibile. Il vantaggio evidente di questo secondo approccio e' che, pur complicando la gestione degli eventi del componente React ed "inquinandolo" con delle funzioni non legate alle feature ma al test, comunque ci consentirebbe di evitare lo sforzo che il mantenimento di un fork di playwright potrebbe potenzialmente implicare (lo sforzo va ad oggi quantificato: non e' detto che sia un'impresa titanica, ndr).
+
+Chiariti i vantaggi, passiamo all'analisi dello scenario "componente senziente".
+
+---
+
+Catturare le mousemove.
+
+Catturare le mousemove, in se', e' piuttosto semplice, basta aggiungere un event listener in javascript. Nel nostro caso, poiche' siamo in React, aggiungiamo questo listener ad un effect:
+
+#+begin_src typescript
+useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+        const handleMouseMove = (event: MouseEvent) => {
+            sendMousePosition({
+                X: (event.clientX),
+                Y: (event.clientY),
+            })
+        };
+
+        canvas.addEventListener('mousemove', handleMouseMove);
+        return () => {
+            canvas.removeEventListener('mousemove', handleMouseMove);
+        };
+    }
+}, []);
+#+end_src
+
+Come possiamo osservare, qui stiamo individuando il canvas e stiamo definendo una funzione che, per ogni evento ricevuto, spedisce le coordinate associate da qualche parte =sendMousePosition=. Il canvas (come elemento specifico) aggiunge un listener che richiama questa funzione e poi React stesso si preoccupa di rimuovere il listener nel momento in cui il componente dovesse essere smontato (vedi =return=).
+
+Evidentemente, qui la complessita' e' nascosta dietro la =sendMousePosition=. Da dove viene? Nel mio esempio (la cui repo e' linkata in questo documento per consentirne l'esplorazione) usiamo per comodita' Zustand come state manager, quindi si puo' facilmente individuare la funzione poco piu' in alto:
+
+#+begin_src typescript
+const sendMousePosition = useStore((state) => state.sendMousePosition);
+#+end_src
+
+Praticamente, qui la richiamiamo, ma la funzione e' definita nello store.
+
+#+begin_src typescript
+sendMousePosition: async (point: Point) => {
+    // ...
+    set((state) => {
+        state.moves.points.push({ X: point.X, Y: point.Y });
+        // ...
+    });
+    // ...
+}
+#+end_src
+
+Da questo estrapolato, in verita', ho omesso parte della logica che gestisce l'acquisizione. Questa non fa altro che simulare una chiamata ad un server ed introdurre delle fasi di latenza in cui la cattura del mouse e' interrotta al fine di non accumulare troppi punti. Ai fini di questo testo, non e' rilevante, quindi possiamo:
+- Ignorare il fatto che sia importata da Zustand
+- Ignorare il fatto che vi sia una funzionalita' di throttling
+
+Dietro questi piccoli ostacoli, si nota che la logica e' molto semplice ed e' situata in quelle tre righe: nello stato e' presente un array che noi popoliamo con delle coordinate (X, Y). In altre parole, tutto cio' che fa il nostro =useEffect= e' ricevere delle coordinate e conservarle in una variabile associata allo stato.
+
+A questo punto, dobbiamo fare in modo che finiscano in un posto accessibile all'esterno. Per semplicita', immaginiamo il caso dell'elemento html visibile (a dir poco facile nasconderlo in seconda battuta).
+
+Recuperiamo il contenuto dallo stato e stampiamo tutto nel jsx (come sexpr, per evitare problematiche nel parsing da javascript in un secondo momento e per amore di compressione nella serializzazione):
+
+#+begin_src typescript
+      <canvas ref={canvasRef} width="800" height="600"></canvas>
+      <div style={{ marginTop: 20 }}>
+        <h3>All points received:</h3>
+        <div data-testid="all-points" style={{ maxHeight: 200, overflowY: 'auto', fontFamily: 'monospace' }}>
+          {(() => {
+            const moves = useStore((state) => state.moves);
+            return `(${moves.map((move) => {
+              const pointsSexpr = moves && moves.length > 0
+                ? `(${moves.map(p => `(${p.X} ${p.Y})`).join(' ')})`
+                : '()';
+              return `(${pointsSexpr})`;
+            }).join(' ')})`;
+          })()}
+        </div>
+      </div>
+#+end_src
+
+Allego video =collect-move-sexpr-00.mp4= che mostra la cattura dei punti. Si ricordi che quella e' solo una frazione filtrata di punti, perche' dietro vi e' anche la logica di throttling cui accennavo (altrimenti il div si sarebbe riempito ad una velocita' drasticamente maggiore).
+
+Risolto questo problema, possiamo passare ai successivi. Senza spingerci ancora troppo in la' con lo sguardo, i due piu' immediati sono:
+- Come facciamo a trasferire queste coordinate nello script di playwright?
+- Come facciamo ad intercalare le coordinate giuste tra un'azione e l'altra?
+
+La prima, apparentemente banale, non lo e' per niente. Infatti, a meno che l'utente non interagisca con l'elemento che contiene le coordinate, non ha motivo di copiare all'interno dello script il contenuto del <div> che abbiamo predisposto per lui. La soluzione piu' semplice e' cliccare sul <div> alla fine del test.
+
+Come da video =collect-move-sexpr-in-codegen.mp4=, si puo' notare che l'introduzione di nuovo testo non popola in automatico lo script. E' necessaria un'interazione dell'utente, ma non basta un'interazione qualunque, serve ad esempio un'asserzione. Tutto cio' e' estremamente comprensibile, visto che se non fosse per un'operazione che riguarda direttamente il testo incluso nell'elemento, playwright non avrebbe alcun motivo di preservarne il contenuto, non sarebbe rilevante ai fini del replay. Con il trucco dell'assertion, possiamo per lo meno collezionare la stringa desiderata. Emergono due problemi:
+1. Abbiamo introdotto un'ulteriore azione da parte del tester (un click; problema superabile? Forse non insormontabile)
+2. La stringa e' contenuta in una funzione e dobbiamo fare in modo che quelle coordinate invece siano portate al di sopra ed interpolate con le altre azioni catturate da playwright.
+
+Immaginiamo, infatti, uno scenario semplice.
+- L'utente apre l'applicazione
+- L'utente clicca sul canvas (coordinata qualunque)
+- L'utente muove il mouse
+- L'utente clicca sul canvas (coordinata qualunque, ma diversa dalla precedente)
+- L'utente muove il mouse
+- L'utente chiude l'applicazione
+
+Per interpolazione o "intercalazione", faccio riferimento alla necessita' di dover dividere le coordinate in due blocchi distinti: uno dovrebbe essere eseguito dopo il primo click, il secondo dopo il secondo click e prima della chiusura dell'applicazione.
+
+Qualcuno potrebbe anche pensare che a tal fine sarebbe sufficiente conservare i timestamp di tutti i movimenti e di tutte le azioni, quindi riprodurre tutto in sequenza rispettando i delta tra un timestamp e l'altro. D'altra parte, questo approccio ci chiuderebbe in una gabbia di limiti da cui stiamo invece cercando di evadere. Preferirei ci concentrassimo su un approccio piu' flessibile, per cui le azioni sono legate tra loro da una sequenza logica intrinseca (desumibile dalla lettura dello script di test) e non da una opaca sequenza di eventi diretti da una logica presunta e che li trascende.
+
+Un esempio di script penso possa chiarire subito la natura di questi problemi:
+
+#+begin_src typescript
+import { test, expect } from '@playwright/test';
+
+test('test', async ({ page }) => {
+  await page.goto('http://localhost:5173/');
+  await page.locator('canvas').click({
+    position: {
+      x: 699,
+      y: 126
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 306,
+      y: 295
+    }
+  });
+  await expect(page.getByTestId('all-points')).toContainText('((((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))) (((627 337) (664 412) (417 484) (516 453) (586 437) (718 455) (936 353) (931 352) (976 487) (658 449) (414 470) (645 417) (465 439) (546 537) (540 521))))');
+});
+#+end_src
+
+Per avere un'idea visiva di come e' stato catturato questo script, si apra =codegen-moves-not-intertwined.mp4=.
+
+Sorvolando per il momento su come sia possibile deserializzare quei punti e riportarli in altre posizioni dello script, appare evidente la necessita' di raggruppare i punti, perche' altrimenti non si capisce quali movimenti siano stati eseguiti prima del primo click, dopo il primo click ma prima del secondo, dopo il secondo click. Affrontiamo, quindi, questo problema di raggruppamento.
+
+## Raggruppamento delle coordinate relativo alle azioni
+
+Noi abbiamo dalla nostra un vantaggio non da poco: conosciamo il sorgente di playwright. Questo implica che possiamo, anche senza influenzarlo, indagarne il funzionamento. In questo caso, ci tornerebbe comodo conoscere quali azioni siano potenzialmente catturabili da codegen e da playwright in genere. Questa informazione e' ricavabile dai cosiddetti =RecorderTool=, tra cui =RecordActionTool= e =JsonRecordActionTool=, cioe' quelli impiegati da codegen automaticamente al lancio. Senza addentrarci nel funzionamento dei tool, scopriamo che queste sono le action catturate:
+
+#+begin_src typescript
+export type ActionName =
+  'check' |
+  'click' |
+  'closePage' |
+  'cursorMove' |
+  'fill' |
+  'navigate' |
+  'openPage' |
+  'press' |
+  'select' |
+  'uncheck' |
+  'setInputFiles' |
+  'assertText' |
+  'assertValue' |
+  'assertChecked' |
+  'assertVisible' |
+  'assertSnapshot';
+#+end_src
+
+Poiche' si tratta in tutti i casi di azioni legate ad eventi del browser, possiamo immaginare di metterci in ascolto di queste azioni proprio come fa il recorder. Per semplicita', torniamo all'esempio del click, ma teniamo a mente che lo stesso approccio puo' essere esteso ad ognuna di queste azioni (e che questo ci consentirebbe una copertura totale nel contesto descritto).
+
+Adesso le implementazioni pratiche iniziano a farsi un tantino piu' estese, quindi evitero' di riportare il codice di ogni singolo step in questa sede. Riassumiamo la logica:
+- Tipizziamo le azioni potenzialmente catturabili da Playwright anche nel nostro frontend (=PwAction=).
+- Ogni action deve accompagnarsi ad un index (la prima volta, la seconda, la terza volta che eseguo la stessa operazione nell'arco di una sessione?)
+- Ogni action puo' accompagnarsi ad una serie di coordinate (movimento del mouse che sussegue l'azione)
+
+Perche' collezionare i movimenti successivi all'azione? Perche' cosi' anche l'azione iniziale, arbitrariamente determinata =openPage=, avra' la sua serie di coordinate potenziali, e da li' fino alla fine ogni singola azione intercettata. Senza perderci in ulteriori convenevoli, questo e' il risultato finale:
+
+#+begin_src typescript
+import { test, expect } from '@playwright/test';
+
+test('test', async ({ page }) => {
+  await page.goto('http://localhost:5173/');
+  await page.locator('canvas').click({
+    position: {
+      x: 440,
+      y: 206
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 385,
+      y: 241
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 550,
+      y: 210
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 551,
+      y: 313
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 358,
+      y: 235
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 268,
+      y: 351
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 634,
+      y: 38
+    }
+  });
+  await page.locator('canvas').click({
+    position: {
+      x: 532,
+      y: 224
+    }
+  });
+  await expect(page.getByTestId('all-points')).toContainText('((openPage 0 ((966 412) (580 341) (710 325))) (click 0 ((671 432) (753 331))) (click 1 ((612 466) (676 425))) (click 2 ((380 557) (690 421) (809 488))) (click 3 ((606 661))) (click 4 ((622 479) (776 597))) (click 5 ((489 558) (799 535))) (click 6 ((888 307) (555 383))))');
+});
+#+end_src
+
+Allego screencast, =codegen-actions-not-intertwined.mp4=. A questo punto, un essere umano che leggesse questo script comprendendo il contesto (o, volendo, un LLM con il giusto prompt) saprebbe ripopolare i campi tra un click e l'altro utilizzando le coordinate di riferimento. In questo caso, dopo l'apertura della pagina, scriverebbe
+
+#+begin_src typescript
+// openPage
+await page.goto('http://localhost:5173/');
+
+// Points after openPage
+const points = [[966, 412], [580, 341], [710, 325]];
+
+// Move the cursor
+for (const [x, y] of points) {
+    await page.mouse.move(x, y);
+    await page.waitForTimeout(1000);
+}
+
+// Next action
+await page.locator('canvas').click({
+    position: {
+        x: 440,
+        y: 206
+    }
+});
+
+// Next moves, next actions...
+#+end_src
+
+ripetendo l'operazione per ogni singolo click (o, piu' genericamente, per ogni azione); d'altra parte, noi vogliamo che anche questo step sia automatico. Ricapitoliamo:
+- Abbiamo intenzione di eseguire una serie di azioni e di intercalare tra esse dei movimenti del mouse
+- Ci assiste codegen, un tool di playwright per la registrazione
+- Codegen non ha interesse nei movimenti del mouse
+- Abbiamo assegnato la responsabilita' di catturare le azioni anche al componente, cosi' da potere ascoltare e collezionare i movimenti del mouse
+- I movimenti del mouse sono raccolti come array di coordinate ed associati all'ultima azione eseguita prima del movimento
+- La versione sexpr serializzata di questo oggetto e' stata, per comodita', renderizzata nel DOM utilizzando React
+- In questo modo, codegen ha potenzialmente accesso al contenuto, a patto che si preoccupi di interoperare con esso (es. con un assert sull'elemento legato al suo contenuto testuale) [non escludo l'esistenza di un modo per evitare questa interazione finale e -- in verita' -- ho qualche idea, ma trattandosi di un semplice click, per ora non ce ne preoccupiamo]
+
+A questo punto, possiamo preoccuparci di gestire il processo di intercalazione dei movimenti tra i click.
+
+** Intercalazione
+*** I due approcci possibili
+
+Essenzialmente, a questo punto ci troviamo dinnanzi ad un problema di metaprogrammazione. Il codice contiene potenzialmente le informazioni necessarie, ma non sono nell'ordine corretto. Se trattassimo il codice come dati (anziche' come "istruzioni"), potremmo trasformarlo in codice utile (da eseguire in seconda battuta). Chiamiamo questo approccio di "generazione di codice".
+
+In alternativa, potremmo affrontare il problema preservando il comportamento esatto della funzione, ma dandole dei "suggerimenti esterni" perche' il suo prodotto sia differente in circostanze specifiche. Di solito, si suggerisce (advising) come ultima spiaggia prima di procedere con macro e metacodice propriamente detto, quindi partiamo da qui.
+
+**** Proxies
+In Javascript e' possibile mutare il comportamento di un metodo in vari modi. Il primo, piu' semplice, e' dato dal monkey patching, cioe' dalla riscrittura del metodo stesso. D'altra parte, questo porta ad inquinare il prototipo, quindi bisognerebbe dapprima conservare il metodo originale, poi sostituirgli quello custom, infine rimpiazzare quest'ultimo con l'originale nuovamente. Non sempre il monkey patching e' possibile, tra l'altro: a volte, la sostituzione di un metodo e' impedita attivamente dalla libreria (e' il nostro caso). Anche non fosse il nostro caso, comunque non amo l'idea del monkey patching, anche perche' ne esiste una piu' elegante: i proxies.
+
+Un proxy e' un oggetto che ti consente di intercettare le operazioni performate da un oggetto target (sia getter che setter). Intercettare l'operazione non ne implica necessariamente la modifica (ed e' qui che arriva il bello). Infatti, possiamo:
+- Catturare le informazioni legate all'operazione
+- Inibirne l'esecuzione
+
+Immaginando un semplice test con una serie di click, come quelli visti finora (legati ad un locator), possiamo raccogliere le coordinate sfruttando un proxy di locator:
+
+#+begin_src typescript
+const proxiedLocator = new Proxy(originalLocator, {
+    get(obj, prop) {
+        if (prop === 'click') {
+            return async (options: LocatorOptions) => {
+                const adviced: AdvicedLocator = {
+                    originalObj: obj,
+                    originalProp: prop,
+                    originalOptions: options,
+                };
+                console.log(advicedLocators);
+            }
+        }
+    },
+    // ...
+});
+#+end_src
+
+In questo semplice esempio, stiamo loggando i dati, ma potremmo anche raccoglierli. Tenendo a mente questo principio di funzionamento, e' possibile costruire proxy piu' elaborati per:
+- Raccogliere dati da ogni tipo di click (non solo locator-related)
+- Intercettare le operazioni della page di Playwright
+- Intercettare gli expect di Playwright
+- Inibire l'esecuzione di assert volutamente non funzionali
+
+Quest'ultimo punto e' utile per raccogliere le coordinate da righe come
+
+#+begin_src typescript
+await expect(page.getByTestId('all-points')).toContainText('((openPage 0 ((966 412) (580 341) (710 325))) (click 0 ((671 432) (753 331))) (click 1 ((612 466) (676 425))) (click 2 ((380 557) (690 421) (809 488))) (click 3 ((606 661))) (click 4 ((622 479) (776 597))) (click 5 ((489 558) (799 535))) (click 6 ((888 307) (555 383))))');
+#+end_src
+
+senza che il test fallisca in caso il campo non rifletta piu' il testo originario. La fixture ci consente di passare al test una page proxied e degli expect proxied, quindi possiamo sfruttarla per questo scopo nonostante non sia esattamente un impiego canonico.
+
+*** Synthetic stream
+Non resta che deserializzare la stringa con le coordinate raccolte e sfruttarla per costruire delle azioni che playwright sia in grado di eseguire. A tal proposito, possono essere intraprese almeno due vie: una prevede la costruzione di tipi specifici per ogni action che desideriamo riprodurre, l'altra prevede di sfruttare la natura dinamica di Javascript per generalizzare a costo di allentare la tipizzazione.
+
+Considerato accuratamente il caso (e ricordando che questa modifica impatta solo alcune azioni), penso sia il caso di seguire la seconda via.
+
+In breve:
+- Anziche' ricreare ogni azione a partire dalle proprieta' con cui e' stata eseguita la prima volta, la wrappiamo in una lambda e la appendiamo ad un array durante la prima fase di esecuzione del test.
+- Le coordinate vengono interpretate ed aggiunte alle lambda corrispondenti al giusto tipo di action ed index (per esempio: il secondo click, l'apertura della pagina).
+- Una funzione esegue infine lo stream di lambda immagazzinato.
+
+# Puo' essere immaginato come il metodo di conservazione dell'energia che sfrutta lo spostamento di grossi volumi d'acqua in alture.
+
+Il risultato puo' essere facilmente dedotto da questa sessione di debug con il relativo log (=action-stream.mp4=):
+
+#+begin_src
+Stored goto (openPage) lambda 0 for URL: http://localhost:5173/
+Stored locator click lambda 1
+Stored page.waitForTimeout lambda 2
+Stored locator click lambda 3
+Stored locator click lambda 4
+Stored keyboard.press lambda 5
+Stored locator click lambda 6
+Stored locator click lambda 7
+Stored mouse move lambda 8 to (100, 100)
+Stored locator click lambda 9
+Stored locator click lambda 10
+Stored locator click lambda 11
+Stored mouse click lambda 12 at (400, 300)
+getting by test id!
+Captured and parsed actions: [
+  {
+    name: 'openPage',
+    index: 0,
+    points: [ [Object], [Object], [Object] ]
+  },
+  { name: 'click', index: 0, points: [ [Object], [Object] ] },
+  { name: 'click', index: 1, points: [ [Object], [Object] ] },
+  { name: 'click', index: 2, points: [ [Object], [Object], [Object] ] },
+  { name: 'click', index: 3, points: [ [Object] ] },
+  { name: 'click', index: 4, points: [ [Object], [Object] ] },
+  { name: 'click', index: 5, points: [ [Object], [Object] ] },
+  { name: 'click', index: 6, points: [ [Object], [Object] ] },
+  { name: 'click', index: 7, points: [ [Object], [Object] ] },
+  { name: 'click', index: 8, points: [ [Object], [Object] ] }
+]
+Updated openPage lambda 0 with 3 trail points: [{"X":966,"Y":412},{"X":580,"Y":341},{"X":710,"Y":325}]
+Updated click lambda 0 with 2 trail points: [{"X":671,"Y":432},{"X":753,"Y":331}]
+Updated click lambda 1 with 2 trail points: [{"X":612,"Y":466},{"X":676,"Y":425}]
+Updated click lambda 2 with 3 trail points: [{"X":380,"Y":557},{"X":690,"Y":421},{"X":809,"Y":488}]
+Updated click lambda 3 with 1 trail points: [{"X":606,"Y":661}]
+Updated click lambda 4 with 2 trail points: [{"X":622,"Y":479},{"X":776,"Y":597}]
+Updated click lambda 5 with 2 trail points: [{"X":489,"Y":558},{"X":799,"Y":535}]
+Updated click lambda 6 with 2 trail points: [{"X":888,"Y":307},{"X":555,"Y":383}]
+Updated click lambda 7 with 2 trail points: [{"X":450,"Y":320},{"X":380,"Y":290}]
+Updated click lambda 8 with 2 trail points: [{"X":420,"Y":310},{"X":400,"Y":300}]
+Executing 13 stored actions...
+Executing action 1/13 (openPage)
+Simulating openPage trail with 3 points
+Executing action 2/13 (click)
+Simulating trail with 2 points
+Executing action 3/13 (page.waitForTimeout)
+Executing action 4/13 (click)
+Simulating trail with 2 points
+Executing action 5/13 (click)
+Simulating trail with 3 points
+Executing action 6/13 (keyboard.press)
+Executing action 7/13 (click)
+Simulating trail with 1 points
+Executing action 8/13 (click)
+Simulating trail with 2 points
+Executing action 9/13 (move)
+Executing action 10/13 (click)
+Simulating trail with 2 points
+Executing action 11/13 (click)
+Simulating trail with 2 points
+Executing action 12/13 (click)
+Simulating trail with 2 points
+Executing action 13/13 (click)
+Simulating trail with 2 points
+All stored actions executed
+#+end_src
+
+Si distinguono perfettamente le tre fasi:
+1. store,
+2. update,
+3. execution with simulated trails.
+
+La funzione che esegue lo stream sintetico puo' essere a sua volta racchiusa nella fixture, eliminando quasi del tutto la presenza dei nostri interventi dallo script di test di playwright.
