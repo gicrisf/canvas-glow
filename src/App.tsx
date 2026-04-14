@@ -50,8 +50,8 @@ function App() {
   }), [vadPositiveThreshold, vadNegativeThreshold, vadRedemptionMs, vadPreSpeechPadMs, vadMinSpeechMs]);
 
   const vad = useMicVAD({
-    baseAssetPath: 'https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/dist/',
-    onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/',
+    baseAssetPath: '/vad/',
+    onnxWASMBasePath: '/ort/',
     positiveSpeechThreshold: vadPositiveThreshold,
     negativeSpeechThreshold: vadNegativeThreshold,
     redemptionMs: vadRedemptionMs,
@@ -86,7 +86,7 @@ function App() {
           useStore.setState({ vadStatus: `Received: "${text}"` });
           useStore.setState({
             transcripts: [...state.transcripts, text],
-            transcript: [...state.transcripts, text].join(' '),
+            transcript: text, // Only show last transcript
           });
         }
       } catch (err) {

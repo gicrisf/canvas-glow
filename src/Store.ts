@@ -249,7 +249,7 @@ export const useStore = create<State & Actions>()(
                   if (text) {
                     set((s) => {
                       s.transcripts = [...s.transcripts, text];
-                      s.transcript = s.transcripts.join(' ');
+                      s.transcript = text; // Only show last transcript
                     });
                   }
                 } catch (err) {
@@ -341,7 +341,7 @@ export const useStore = create<State & Actions>()(
                   s.transcript = s.transcripts.join(' ');
                   s.statusMessage = 'Realtime session ended.';
                 } else if (!wasRealtime) {
-                  s.transcript = text;
+                  s.transcript = text; // Only show last transcript for non-realtime too
                   s.statusMessage = text
                     ? 'Click the sphere to record again.'
                     : 'No speech detected. Try again.';
