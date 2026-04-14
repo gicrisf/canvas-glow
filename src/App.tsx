@@ -218,7 +218,7 @@ function App() {
 
   return (
     <div>
-      <h1>I saw the canvas glow</h1>
+      <h1>I heard the canvas glow</h1>
       <h3>&gt; {statusMessage}</h3>
       {realtimeMode && vadEnabled && vadSystem === 'silero' && vad.loading && (
         <h3 style={{ color: '#fbbf24' }}>&gt; Loading Silero VAD model...</h3>
