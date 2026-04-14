@@ -2,7 +2,8 @@ import { useRef, useEffect, useCallback } from 'react'
 import { useMicVAD } from '@ricky0123/vad-react'
 import './App.css'
 import { useStore } from './Store';
-import { LANGUAGES, VAD_SYSTEMS, encodeWAV, transcribe } from './audio';
+import { encodeWAV, transcribe } from './audio';
+import { SettingsPanel } from './components/SettingsPanel';
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -11,12 +12,9 @@ function App() {
     isProcessing,
     transcript,
     statusMessage,
-    serverStatus,
     serverUrl,
-    language,
     settingsOpen,
     realtimeMode,
-    chunkInterval,
     vadEnabled,
     vadSystem,
     vadStatus,
@@ -27,18 +25,7 @@ function App() {
     vadPreSpeechPadMs,
     vadMinSpeechMs,
     toggleRecording,
-    setServerUrl,
-    setLanguage,
     toggleSettings,
-    toggleRealtime,
-    setChunkInterval,
-    toggleVad,
-    setVadSystem,
-    setVadPositiveThreshold,
-    setVadNegativeThreshold,
-    setVadRedemptionMs,
-    setVadPreSpeechPadMs,
-    setVadMinSpeechMs,
     checkServerHealth,
   } = useStore();
 
@@ -248,149 +235,10 @@ function App() {
 
       <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <button onClick={toggleSettings}>
-          {settingsOpen ? '- Settings' : '+ Settings'}
+          {settingsOpen ? '− Settings' : '+ Settings'}
         </button>
 
-        {settingsOpen && (
-          <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', maxWidth: '400px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              Server URL:
-              <input
-                type="text"
-                value={serverUrl}
-                onChange={(e) => setServerUrl(e.target.value)}
-                placeholder="http://localhost:8080"
-                style={{ flex: 1, padding: '0.25rem' }}
-              />
-              <span style={{
-                color: serverStatus === 'ok' ? '#4ade80' :
-                       serverStatus === 'error' ? '#f87171' :
-                       serverStatus === 'loading' ? '#fbbf24' : '#9ca3af'
-              }}>
-                {serverStatus}
-              </span>
-              <button onClick={checkServerHealth} style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>
-                Check
-              </button>
-            </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              Language:
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                style={{ flex: 1, padding: '0.25rem' }}
-              >
-                {LANGUAGES.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang || 'Auto-detect'}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <button
-                onClick={toggleRealtime}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: realtimeMode ? '#4ade80' : 'transparent',
-                  color: realtimeMode ? '#000' : 'inherit',
-                  border: '1px solid',
-                  borderColor: realtimeMode ? '#4ade80' : '#666',
-                  cursor: 'pointer',
-                }}
-              >
-                {realtimeMode ? 'Realtime: ON' : 'Realtime: OFF'}
-              </button>
-              <button
-                onClick={toggleVad}
-                disabled={!realtimeMode}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: vadEnabled && realtimeMode ? '#60a5fa' : 'transparent',
-                  color: vadEnabled && realtimeMode ? '#000' : 'inherit',
-                  border: '1px solid',
-                  borderColor: !realtimeMode ? '#444' : vadEnabled ? '#60a5fa' : '#666',
-                  opacity: realtimeMode ? 1 : 0.4,
-                  cursor: realtimeMode ? 'pointer' : 'not-allowed',
-                }}
-              >
-                VAD: {vadEnabled && realtimeMode ? 'ON' : 'OFF'}
-              </button>
-              {realtimeMode && !vadEnabled && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <input
-                    type="number"
-                    min={1}
-                    value={chunkInterval}
-                    onChange={(e) => setChunkInterval(Number(e.target.value))}
-                    style={{ width: '3.5rem', padding: '0.25rem', textAlign: 'center' }}
-                  />
-                  s
-                </label>
-              )}
-              {realtimeMode && vadEnabled && (
-                <select
-                  value={vadSystem}
-                  onChange={(e) => setVadSystem(e.target.value)}
-                  style={{ padding: '0.25rem' }}
-                >
-                  {VAD_SYSTEMS.map((sys) => (
-                    <option key={sys} value={sys}>
-                      {sys}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {realtimeMode && vadEnabled && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 1rem', fontSize: '0.875rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  Positive:
-                  <input type="number" min={0} max={1} step={0.05}
-                    value={vadPositiveThreshold}
-                    onChange={(e) => setVadPositiveThreshold(Number(e.target.value))}
-                    style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
-                  />
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  Negative:
-                  <input type="number" min={0} max={1} step={0.05}
-                    value={vadNegativeThreshold}
-                    onChange={(e) => setVadNegativeThreshold(Number(e.target.value))}
-                    style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
-                  />
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  Redemption:
-                  <input type="number" min={0} step={100}
-                    value={vadRedemptionMs}
-                    onChange={(e) => setVadRedemptionMs(Number(e.target.value))}
-                    style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
-                  />ms
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  Pre-speech:
-                  <input type="number" min={0} step={100}
-                    value={vadPreSpeechPadMs}
-                    onChange={(e) => setVadPreSpeechPadMs(Number(e.target.value))}
-                    style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
-                  />ms
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  Min speech:
-                  <input type="number" min={0} step={100}
-                    value={vadMinSpeechMs}
-                    onChange={(e) => setVadMinSpeechMs(Number(e.target.value))}
-                    style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
-                  />ms
-                </label>
-              </div>
-            )}
-          </div>
-        )}
+        {settingsOpen && <SettingsPanel />}
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { devtools, persist } from 'zustand/middleware';
-import { prepareAudioForTranscription, transcribe } from './audio';
+import { prepareAudioForTranscription, prepareAudioForDebug, transcribe } from './audio';
 
 // Audio resources kept outside Immer (mutable)
 const audioResources = {
@@ -10,7 +10,23 @@ const audioResources = {
   processor: null as ScriptProcessorNode | null,
   audioBuffer: [] as Float32Array[],
   chunkTimer: null as number | null,
+  // Store last recording for debug downloads
+  lastRecording: {
+    chunks: [] as Float32Array[],
+    sampleRate: 0,
+  },
 };
+
+// Build microphone constraints based on settings
+function buildMicrophoneConstraints(disableProcessing: boolean): MediaTrackConstraints {
+  return {
+    channelCount: 1,
+    sampleRate: { ideal: 48000 },
+    echoCancellation: !disableProcessing,
+    autoGainControl: !disableProcessing,
+    noiseSuppression: !disableProcessing,
+  };
+}
 
 const DEFAULT_CHUNK_INTERVAL = 5;
 
@@ -38,6 +54,9 @@ type State = {
   vadPreSpeechPadMs: number;
   vadMinSpeechMs: number;
 
+  // Audio capture settings
+  rawMicMode: boolean; // Disable browser audio processing (AGC, noise suppression, echo cancellation)
+
   // Realtime transcripts
   transcripts: string[];
 
@@ -46,6 +65,11 @@ type State = {
 
   // ASR status
   asrStatus: string;
+
+  // Debug: audio preview and download
+  hasRecordedAudio: boolean;
+  rawAudioUrl: string | null;
+  processedAudioUrl: string | null;
 }
 
 type Actions = {
@@ -66,6 +90,10 @@ type Actions = {
   setVadMinSpeechMs: (v: number) => void;
   setStatusMessage: (msg: string) => void;
   checkServerHealth: () => Promise<void>;
+  downloadRawAudio: () => void;
+  downloadProcessedAudio: () => void;
+  toggleRawMicMode: () => void;
+  prepareAudioPreview: () => Promise<void>;
 }
 
 export const useStore = create<State & Actions>()(
@@ -90,9 +118,13 @@ export const useStore = create<State & Actions>()(
         vadRedemptionMs: 800,
         vadPreSpeechPadMs: 500,
         vadMinSpeechMs: 250,
+        rawMicMode: false,
         transcripts: [],
         vadStatus: '',
         asrStatus: '',
+        hasRecordedAudio: false,
+        rawAudioUrl: null,
+        processedAudioUrl: null,
 
         checkServerHealth: async () => {
           const state = get();
@@ -178,6 +210,10 @@ export const useStore = create<State & Actions>()(
           set((state) => { state.vadMinSpeechMs = Math.max(0, Math.round(v)); });
         },
 
+        toggleRawMicMode: () => {
+          set((state) => { state.rawMicMode = !state.rawMicMode; });
+        },
+
         startRecording: async () => {
           const state = get();
           if (state.isRecording || state.isProcessing) return;
@@ -193,10 +229,16 @@ export const useStore = create<State & Actions>()(
           }
 
           try {
+            const constraints = buildMicrophoneConstraints(state.rawMicMode);
             const stream = await navigator.mediaDevices.getUserMedia({
-              audio: true,
+              audio: constraints,
               video: false,
             });
+
+            // Log actual microphone settings for debugging
+            const track = stream.getAudioTracks()[0];
+            console.log('Requested constraints:', constraints);
+            console.log('Actual microphone settings:', track.getSettings());
 
             const audioContext = new AudioContext();
             const source = audioContext.createMediaStreamSource(stream);
@@ -236,7 +278,7 @@ export const useStore = create<State & Actions>()(
                 const nativeRate = audioResources.audioContext?.sampleRate || 48000;
 
                 try {
-                  const wavBlob = prepareAudioForTranscription(chunks, nativeRate);
+                  const wavBlob = await prepareAudioForTranscription(chunks, nativeRate);
                   set((s) => { s.isProcessing = true; });
 
                   const result = await transcribe(
@@ -298,8 +340,14 @@ export const useStore = create<State & Actions>()(
           }
 
           // Capture audio state before cleanup
-          const audioBuffer = audioResources.audioBuffer;
+          const audioBuffer = [...audioResources.audioBuffer]; // Copy for debug downloads
           const nativeSampleRate = audioResources.audioContext?.sampleRate || 48000;
+
+          // Store for debug downloads
+          audioResources.lastRecording = {
+            chunks: audioBuffer,
+            sampleRate: nativeSampleRate,
+          };
 
           // Cleanup audio resources
           audioResources.processor?.disconnect();
@@ -316,15 +364,21 @@ export const useStore = create<State & Actions>()(
           set((s) => {
             s.isRecording = false;
             s.isProcessing = audioBuffer.length > 0;
+            s.hasRecordedAudio = audioBuffer.length > 0;
             s.statusMessage = audioBuffer.length > 0
               ? (wasRealtime ? 'Sending final chunk...' : 'Processing...')
               : (wasRealtime ? 'Realtime session ended.' : 'No audio recorded. Try again.');
           });
 
+          // Prepare audio preview URLs (non-blocking)
+          if (audioBuffer.length > 0) {
+            get().prepareAudioPreview();
+          }
+
           // Send remaining audio
           if (audioBuffer.length > 0) {
             try {
-              const wavBlob = prepareAudioForTranscription(audioBuffer, nativeSampleRate);
+              const wavBlob = await prepareAudioForTranscription(audioBuffer, nativeSampleRate, true);
               const currentState = get();
               const result = await transcribe(
                 wavBlob,
@@ -373,6 +427,49 @@ export const useStore = create<State & Actions>()(
             state.startRecording();
           }
         },
+
+        prepareAudioPreview: async () => {
+          const { chunks, sampleRate } = audioResources.lastRecording;
+          if (chunks.length === 0) return;
+
+          // Revoke old URLs to avoid memory leaks
+          const state = get();
+          if (state.rawAudioUrl) URL.revokeObjectURL(state.rawAudioUrl);
+          if (state.processedAudioUrl) URL.revokeObjectURL(state.processedAudioUrl);
+
+          const { raw, processed } = await prepareAudioForDebug(chunks, sampleRate);
+          set((s) => {
+            s.rawAudioUrl = URL.createObjectURL(raw);
+            s.processedAudioUrl = URL.createObjectURL(processed);
+          });
+        },
+
+        downloadRawAudio: () => {
+          const state = get();
+          if (!state.rawAudioUrl) {
+            console.warn('No recording available to download');
+            return;
+          }
+          const { sampleRate } = audioResources.lastRecording;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const a = document.createElement('a');
+          a.href = state.rawAudioUrl;
+          a.download = `raw-${sampleRate}hz-${timestamp}.wav`;
+          a.click();
+        },
+
+        downloadProcessedAudio: () => {
+          const state = get();
+          if (!state.processedAudioUrl) {
+            console.warn('No recording available to download');
+            return;
+          }
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const a = document.createElement('a');
+          a.href = state.processedAudioUrl;
+          a.download = `processed-16000hz-${timestamp}.wav`;
+          a.click();
+        },
       })),
       {
         name: 'canvas-glow-asr-storage',
@@ -389,6 +486,7 @@ export const useStore = create<State & Actions>()(
           vadRedemptionMs: state.vadRedemptionMs,
           vadPreSpeechPadMs: state.vadPreSpeechPadMs,
           vadMinSpeechMs: state.vadMinSpeechMs,
+          rawMicMode: state.rawMicMode,
         }),
       }
     )

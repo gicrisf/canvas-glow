@@ -13,15 +13,63 @@ export interface TranscriptionResult {
 }
 
 /**
- * Downsample audio from one sample rate to another using linear interpolation.
+ * Trigger a file download in the browser.
  */
-export function downsample(
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Log audio statistics for debugging.
+ */
+export function logAudioStats(samples: Float32Array, sampleRate: number, label: string) {
+  const peak = Math.max(...Array.from(samples).map(Math.abs));
+  const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
+  const duration = samples.length / sampleRate;
+  console.log(`[${label}] duration=${duration.toFixed(2)}s, samples=${samples.length}, rate=${sampleRate}, peak=${peak.toFixed(3)}, rms=${rms.toFixed(4)}`);
+}
+
+/**
+ * Downsample audio using OfflineAudioContext for proper anti-aliased resampling.
+ * Falls back to linear interpolation if OfflineAudioContext is unavailable.
+ */
+export async function downsample(
   samples: Float32Array,
   fromRate: number,
   toRate: number
-): Float32Array {
+): Promise<Float32Array> {
   if (fromRate === toRate) return samples;
 
+  // Try proper resampling with OfflineAudioContext
+  if (typeof OfflineAudioContext !== 'undefined') {
+    try {
+      const offlineCtx = new OfflineAudioContext(
+        1,
+        Math.ceil(samples.length * toRate / fromRate),
+        toRate
+      );
+
+      const buffer = offlineCtx.createBuffer(1, samples.length, fromRate);
+      buffer.copyToChannel(samples, 0);
+
+      const source = offlineCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(offlineCtx.destination);
+      source.start();
+
+      const rendered = await offlineCtx.startRendering();
+      return rendered.getChannelData(0);
+    } catch (err) {
+      console.warn('OfflineAudioContext resampling failed, falling back to linear:', err);
+    }
+  }
+
+  // Fallback: linear interpolation (not ideal, can cause aliasing)
   const ratio = fromRate / toRate;
   const newLength = Math.round(samples.length / ratio);
   const result = new Float32Array(newLength);
@@ -117,13 +165,9 @@ export async function transcribe(
 }
 
 /**
- * Prepare audio buffer for transcription: combine chunks, downsample, encode.
+ * Combine audio chunks into a single Float32Array.
  */
-export function prepareAudioForTranscription(
-  chunks: Float32Array[],
-  nativeSampleRate: number
-): Blob {
-  // Combine all chunks
+export function combineChunks(chunks: Float32Array[]): Float32Array {
   const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const combined = new Float32Array(totalLength);
   let offset = 0;
@@ -131,12 +175,53 @@ export function prepareAudioForTranscription(
     combined.set(chunk, offset);
     offset += chunk.length;
   }
+  return combined;
+}
+
+/**
+ * Prepare audio buffer for transcription: combine chunks, downsample, encode.
+ */
+export async function prepareAudioForTranscription(
+  chunks: Float32Array[],
+  nativeSampleRate: number,
+  debug = false
+): Promise<Blob> {
+  const combined = combineChunks(chunks);
+
+  if (debug) {
+    logAudioStats(combined, nativeSampleRate, 'raw-captured');
+  }
 
   // Downsample to 16kHz
-  const resampled = downsample(combined, nativeSampleRate, TARGET_SAMPLE_RATE);
+  const resampled = await downsample(combined, nativeSampleRate, TARGET_SAMPLE_RATE);
+
+  if (debug) {
+    logAudioStats(resampled, TARGET_SAMPLE_RATE, 'downsampled');
+  }
 
   // Encode as WAV
   return encodeWAV(resampled, TARGET_SAMPLE_RATE);
+}
+
+/**
+ * Prepare both raw and processed audio for comparison/download.
+ */
+export async function prepareAudioForDebug(
+  chunks: Float32Array[],
+  nativeSampleRate: number
+): Promise<{ raw: Blob; processed: Blob; rawSamples: Float32Array; processedSamples: Float32Array }> {
+  const combined = combineChunks(chunks);
+  logAudioStats(combined, nativeSampleRate, 'raw-captured');
+
+  const resampled = await downsample(combined, nativeSampleRate, TARGET_SAMPLE_RATE);
+  logAudioStats(resampled, TARGET_SAMPLE_RATE, 'downsampled');
+
+  return {
+    raw: encodeWAV(combined, nativeSampleRate),
+    processed: encodeWAV(resampled, TARGET_SAMPLE_RATE),
+    rawSamples: combined,
+    processedSamples: resampled,
+  };
 }
 
 export const LANGUAGES = [
