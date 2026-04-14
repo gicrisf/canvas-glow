@@ -6,12 +6,14 @@ export function AudioSettings() {
     chunkInterval,
     vadEnabled,
     rawMicMode,
+    inputGain,
     hasRecordedAudio,
     rawAudioUrl,
     processedAudioUrl,
     toggleRealtime,
     setChunkInterval,
     toggleRawMicMode,
+    setInputGain,
     downloadRawAudio,
     downloadProcessedAudio,
   } = useStore();
@@ -65,6 +67,23 @@ export function AudioSettings() {
         </button>
         <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
           {rawMicMode ? 'No processing' : 'AGC + Noise suppression'}
+        </span>
+      </div>
+
+      {/* Input Gain Control */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <label style={{ minWidth: '80px' }}>Input Gain:</label>
+        <input
+          type="range"
+          min={0.1}
+          max={1}
+          step={0.05}
+          value={inputGain}
+          onChange={(e) => setInputGain(Number(e.target.value))}
+          style={{ flex: 1, maxWidth: '150px' }}
+        />
+        <span style={{ fontSize: '0.75rem', color: '#9ca3af', minWidth: '40px' }}>
+          {(inputGain * 100).toFixed(0)}%
         </span>
       </div>
 

@@ -7,6 +7,9 @@ import { prepareAudioForTranscription, prepareAudioForDebug, transcribe } from '
 const audioResources = {
   audioContext: null as AudioContext | null,
   mediaStream: null as MediaStream | null,
+  gainNode: null as GainNode | null,
+  workletNode: null as AudioWorkletNode | null,
+  // Fallback for browsers without AudioWorklet support
   processor: null as ScriptProcessorNode | null,
   audioBuffer: [] as Float32Array[],
   chunkTimer: null as number | null,
@@ -16,6 +19,50 @@ const audioResources = {
     sampleRate: 0,
   },
 };
+
+// Resources for VAD gain-adjusted stream (separate from main capture)
+const vadAudioResources = {
+  audioContext: null as AudioContext | null,
+  mediaStream: null as MediaStream | null,
+};
+
+/**
+ * Creates a gain-adjusted MediaStream for VAD.
+ * This allows the same input gain setting to apply to VAD audio.
+ */
+export async function createGainAdjustedStream(
+  constraints: MediaTrackConstraints,
+  gain: number
+): Promise<MediaStream> {
+  // Clean up any previous VAD audio context
+  if (vadAudioResources.audioContext) {
+    await vadAudioResources.audioContext.close();
+  }
+  vadAudioResources.mediaStream?.getTracks().forEach(t => t.stop());
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: constraints,
+    video: false,
+  });
+
+  const audioContext = new AudioContext();
+  const source = audioContext.createMediaStreamSource(stream);
+  const gainNode = audioContext.createGain();
+  gainNode.gain.value = gain;
+
+  // Create a destination node to get a new MediaStream with gain applied
+  const destination = audioContext.createMediaStreamDestination();
+
+  source.connect(gainNode);
+  gainNode.connect(destination);
+
+  // Keep references for cleanup
+  vadAudioResources.audioContext = audioContext;
+  vadAudioResources.mediaStream = stream;
+
+  console.log(`VAD stream created with gain ${(gain * 100).toFixed(0)}%`);
+  return destination.stream;
+}
 
 // Build microphone constraints based on settings
 function buildMicrophoneConstraints(disableProcessing: boolean): MediaTrackConstraints {
@@ -56,6 +103,7 @@ type State = {
 
   // Audio capture settings
   rawMicMode: boolean; // Disable browser audio processing (AGC, noise suppression, echo cancellation)
+  inputGain: number; // Input gain multiplier (0.1 to 1.0)
 
   // Realtime transcripts
   transcripts: string[];
@@ -93,6 +141,7 @@ type Actions = {
   downloadRawAudio: () => void;
   downloadProcessedAudio: () => void;
   toggleRawMicMode: () => void;
+  setInputGain: (gain: number) => void;
   prepareAudioPreview: () => Promise<void>;
 }
 
@@ -119,6 +168,7 @@ export const useStore = create<State & Actions>()(
         vadPreSpeechPadMs: 500,
         vadMinSpeechMs: 250,
         rawMicMode: false,
+        inputGain: 0.5,
         transcripts: [],
         vadStatus: '',
         asrStatus: '',
@@ -214,6 +264,10 @@ export const useStore = create<State & Actions>()(
           set((state) => { state.rawMicMode = !state.rawMicMode; });
         },
 
+        setInputGain: (gain: number) => {
+          set((state) => { state.inputGain = Math.min(1, Math.max(0.1, gain)); });
+        },
+
         startRecording: async () => {
           const state = get();
           if (state.isRecording || state.isProcessing) return;
@@ -242,23 +296,54 @@ export const useStore = create<State & Actions>()(
 
             const audioContext = new AudioContext();
             const source = audioContext.createMediaStreamSource(stream);
-            const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+            // Create gain node for input level control
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = state.inputGain;
+            source.connect(gainNode);
+            audioResources.gainNode = gainNode;
+            console.log(`Input gain set to ${(state.inputGain * 100).toFixed(0)}%`);
 
             // Clear previous buffer
             audioResources.audioBuffer = [];
 
-            processor.onaudioprocess = (e) => {
-              const input = e.inputBuffer.getChannelData(0);
-              audioResources.audioBuffer.push(new Float32Array(input));
-            };
+            // Try AudioWorklet first (modern, runs on audio thread)
+            let useWorklet = false;
+            if (audioContext.audioWorklet) {
+              try {
+                await audioContext.audioWorklet.addModule('/audio-capture-worklet.js');
+                const workletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
+                workletNode.port.onmessage = (event) => {
+                  if (event.data.type === 'audio') {
+                    audioResources.audioBuffer.push(new Float32Array(event.data.buffer));
+                  }
+                };
+                gainNode.connect(workletNode);
+                workletNode.connect(audioContext.destination);
+                audioResources.workletNode = workletNode;
+                useWorklet = true;
+                console.log('Using AudioWorklet for audio capture');
+              } catch (workletErr) {
+                console.warn('AudioWorklet failed, falling back to ScriptProcessorNode:', workletErr);
+              }
+            }
 
-            source.connect(processor);
-            processor.connect(audioContext.destination);
+            // Fallback to ScriptProcessorNode (deprecated but widely supported)
+            if (!useWorklet) {
+              const processor = audioContext.createScriptProcessor(4096, 1, 1);
+              processor.onaudioprocess = (e) => {
+                const input = e.inputBuffer.getChannelData(0);
+                audioResources.audioBuffer.push(new Float32Array(input));
+              };
+              gainNode.connect(processor);
+              processor.connect(audioContext.destination);
+              audioResources.processor = processor;
+              console.log('Using ScriptProcessorNode for audio capture (fallback)');
+            }
 
             // Store references
             audioResources.audioContext = audioContext;
             audioResources.mediaStream = stream;
-            audioResources.processor = processor;
 
             const currentState = get();
 
@@ -350,12 +435,16 @@ export const useStore = create<State & Actions>()(
           };
 
           // Cleanup audio resources
+          audioResources.workletNode?.disconnect();
           audioResources.processor?.disconnect();
+          audioResources.gainNode?.disconnect();
           audioResources.mediaStream?.getTracks().forEach(t => t.stop());
           await audioResources.audioContext?.close();
 
           audioResources.audioContext = null;
           audioResources.mediaStream = null;
+          audioResources.gainNode = null;
+          audioResources.workletNode = null;
           audioResources.processor = null;
           audioResources.audioBuffer = [];
 
@@ -487,6 +576,7 @@ export const useStore = create<State & Actions>()(
           vadPreSpeechPadMs: state.vadPreSpeechPadMs,
           vadMinSpeechMs: state.vadMinSpeechMs,
           rawMicMode: state.rawMicMode,
+          inputGain: state.inputGain,
         }),
       }
     )

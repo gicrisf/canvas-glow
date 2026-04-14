@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { useMicVAD } from '@ricky0123/vad-react'
 import './App.css'
-import { useStore } from './Store';
+import { useStore, createGainAdjustedStream } from './Store';
 import { encodeWAV, transcribe } from './audio';
 import { SettingsPanel } from './components/SettingsPanel';
 
@@ -24,6 +24,7 @@ function App() {
     vadRedemptionMs,
     vadPreSpeechPadMs,
     vadMinSpeechMs,
+    inputGain,
     toggleRecording,
     toggleSettings,
     checkServerHealth,
@@ -32,9 +33,10 @@ function App() {
   // VAD integration (only active when silero is selected)
   // getStream changes identity when params change, forcing hook to recreate VAD
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const getStream = useCallback(() => navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, autoGainControl: true, noiseSuppression: true },
-  }), [vadPositiveThreshold, vadNegativeThreshold, vadRedemptionMs, vadPreSpeechPadMs, vadMinSpeechMs]);
+  const getStream = useCallback(() => createGainAdjustedStream(
+    { channelCount: 1, echoCancellation: true, autoGainControl: true, noiseSuppression: true },
+    inputGain
+  ), [vadPositiveThreshold, vadNegativeThreshold, vadRedemptionMs, vadPreSpeechPadMs, vadMinSpeechMs, inputGain]);
 
   const vad = useMicVAD({
     baseAssetPath: '/vad/',
