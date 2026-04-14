@@ -146,3 +146,9 @@ export const LANGUAGES = [
   'Macedonian', 'Malay', 'Persian', 'Polish', 'Portuguese', 'Romanian',
   'Russian', 'Spanish', 'Swedish', 'Thai', 'Turkish', 'Vietnamese'
 ];
+
+export const VAD_SYSTEMS = [
+  'silero',
+  'webrtc',
+  'energy',
+];
