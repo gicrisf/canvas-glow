@@ -1,131 +1,185 @@
 import { useRef, useEffect } from 'react'
 import './App.css'
 import { useStore } from './Store';
+import { LANGUAGES } from './audio';
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { isLoading, nodes, addNode, message } = useStore();
+  const {
+    isRecording,
+    isProcessing,
+    transcript,
+    statusMessage,
+    serverStatus,
+    serverUrl,
+    language,
+    settingsOpen,
+    toggleRecording,
+    setServerUrl,
+    setLanguage,
+    toggleSettings,
+    checkServerHealth,
+  } = useStore();
 
+  // Canvas rendering
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        throw new Error("Canvas ctx not found!");
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error("Canvas ctx not found!");
+    }
+
+    let frameCount = 0;
+    let animationId: number;
+
+    const draw = () => {
+      const { width, height } = canvas;
+
+      // Clear
+      ctx.clearRect(0, 0, width, height);
+
+      if (!isRecording && !isProcessing) {
+        // Grey static circle when idle
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'grey';
+        ctx.beginPath();
+        ctx.arc(width / 2, height / 2, 100, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Pulsing sphere when recording or processing
+        ctx.shadowBlur = 20;
+
+        // Pink for recording, purple for processing
+        const color = isRecording
+          ? { r: 255, g: 105, b: 180 } // Hot pink
+          : { r: 147, g: 112, b: 219 }; // Medium purple
+
+        ctx.shadowColor = `rgba(${color.r}, ${color.g}, ${color.b}, 0.8)`;
+
+        const gradient = ctx.createRadialGradient(
+          width / 2 + Math.sin(frameCount * 0.05) * 50,
+          height / 2 + Math.cos(frameCount * 0.05) * 50,
+          0,
+          width / 2 + Math.sin(frameCount * 0.05) * 50,
+          height / 2 + Math.cos(frameCount * 0.05) * 50,
+          100
+        );
+        gradient.addColorStop(0, 'white');
+        gradient.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`);
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        const radius = 100 + 20 * Math.sin(frameCount * 0.05);
+        ctx.arc(
+          width / 2 + Math.sin(frameCount * 0.05) * 50,
+          height / 2 + Math.cos(frameCount * 0.05) * 50,
+          radius, 0, Math.PI * 2
+        );
+        ctx.fill();
+
+        frameCount++;
       }
 
-      let frameCount = 0;
+      animationId = requestAnimationFrame(draw);
+    };
 
-      // Aesthetics
-      const drawNoise = () => {
-        const { width, height } = canvas;
-        // Black background
-        // ctx.fillStyle = 'black';
-        // ctx.fillRect(0, 0, width, height);
+    draw();
 
-        // Static
-        const imageData = ctx.createImageData(width, height);
-        const data = imageData.data;
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, [isRecording, isProcessing]);
 
-        for (let i = 0; i < data.length; i += 4) {
-          const value = Math.floor(Math.random() * 256); // Random grayscale value
-          data[i] = value;     // R
-          data[i + 1] = value; // G
-          data[i + 2] = value; // B
-          data[i + 3] = 105;   // A
-        }
-
-        ctx.putImageData(imageData, 0, 0);
-        requestAnimationFrame(drawNoise);
-      };
-
-      // Pulsing sphere
-      const draw = () => {
-        const { width, height } = canvas;
-
-        // Clear
-        ctx.clearRect(0, 0, width, height);
-
-        if (!isLoading) {
-          // Grey static circle when not loading
-          ctx.shadowBlur = 0; // No glow
-          ctx.fillStyle = 'grey';
-          ctx.beginPath();
-          ctx.arc(width / 2, height / 2, 100, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          // Pulsing sphere when loading
-          ctx.shadowBlur = 20;
-          ctx.shadowColor = 'rgba(255, 105, 180, 0.8)';
-
-          const gradient = ctx.createRadialGradient(
-            width / 2 + Math.sin(frameCount * 0.05) * 50,
-            height / 2 + Math.cos(frameCount * 0.05) * 50,
-            0,
-            width / 2 + Math.sin(frameCount * 0.05) * 50,
-            height / 2 + Math.cos(frameCount * 0.05) * 50,
-            100
-          );
-          gradient.addColorStop(0, 'white');
-          gradient.addColorStop(1, 'rgba(255, 105, 180, 0.3)');
-
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          const radius = 100 + 20 * Math.sin(frameCount * 0.05);
-          ctx.arc(
-            width / 2 + Math.sin(frameCount * 0.05) * 50,
-            height / 2 + Math.cos(frameCount * 0.05) * 50,
-            radius, 0, Math.PI * 2
-          );
-          ctx.fill();
-
-          frameCount++;
-        }
-
-        requestAnimationFrame(draw);
-      };
-
-      // drawNoise();
-      draw();
-    }
-  }, [isLoading]);
-
-  // Actual work
+  // Click handler
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas) {
-      const handleMouseClick = (event: MouseEvent) => {
-        switch (event.button) {
-          case 0:
-            addNode({
-              X: (event.clientX),
-              Y: (event.clientY),
-            });
-            break;
-          default:
-            break;
-        }
-      };
-      canvas.addEventListener('mousedown', handleMouseClick);
-      return () => {
-        canvas.removeEventListener('mousedown', handleMouseClick);
-      };
-    }
-  }, []);
+    if (!canvas) return;
+
+    const handleClick = (event: MouseEvent) => {
+      if (event.button === 0) {
+        toggleRecording();
+      }
+    };
+
+    canvas.addEventListener('mousedown', handleClick);
+    return () => {
+      canvas.removeEventListener('mousedown', handleClick);
+    };
+  }, [toggleRecording]);
+
+  // Check server health on mount and when URL changes
+  useEffect(() => {
+    checkServerHealth();
+  }, [serverUrl, checkServerHealth]);
 
   return (
     <div>
       <h1>I saw the canvas glow</h1>
-      <h3>&gt; {message}</h3>
-      <canvas ref={canvasRef} width="800" height="600"></canvas>
+      <h3>&gt; {statusMessage}</h3>
+      <canvas
+        ref={canvasRef}
+        width="800"
+        height="600"
+        style={{ cursor: isProcessing ? 'wait' : 'pointer' }}
+      />
 
-      <div style={{ display: 'flex' }}>
-        <div style={{ marginRight: '10px' }}>Nodes:</div>
-        {nodes.map((node, index) => (
-          <div key={index} style={{ marginRight: '10px' }}>
-            X: {node.X}, Y: {node.Y}
+      {transcript && (
+        <div style={{ marginTop: '1rem', maxWidth: '800px' }}>
+          <h3>Transcript:</h3>
+          <p style={{ fontSize: '1.2rem', lineHeight: 1.6 }}>{transcript}</p>
+        </div>
+      )}
+
+      <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <button onClick={toggleSettings}>
+          {settingsOpen ? '- Settings' : '+ Settings'}
+        </button>
+
+        {settingsOpen && (
+          <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', maxWidth: '400px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              Server URL:
+              <input
+                type="text"
+                value={serverUrl}
+                onChange={(e) => setServerUrl(e.target.value)}
+                placeholder="http://localhost:8080"
+                style={{ flex: 1, padding: '0.25rem' }}
+              />
+            </label>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>Server Status:</span>
+              <span style={{
+                color: serverStatus === 'ok' ? '#4ade80' :
+                       serverStatus === 'error' ? '#f87171' :
+                       serverStatus === 'loading' ? '#fbbf24' : '#9ca3af'
+              }}>
+                {serverStatus}
+              </span>
+              <button onClick={checkServerHealth} style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>
+                Check
+              </button>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              Language:
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                style={{ flex: 1, padding: '0.25rem' }}
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang || 'Auto-detect'}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        ))}
+        )}
       </div>
     </div>
   )
