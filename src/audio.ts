@@ -237,3 +237,49 @@ export const VAD_SYSTEMS = [
   'webrtc',
   'energy',
 ];
+
+/**
+ * Resample a WAV blob to 16kHz and optionally apply gain.
+ * Decodes the WAV, applies gain, resamples, and re-encodes.
+ */
+export async function resampleWavBlob(wavBlob: Blob, gain: number = 1.0): Promise<Blob> {
+  // Decode WAV blob using AudioContext
+  const arrayBuffer = await wavBlob.arrayBuffer();
+  const audioContext = new AudioContext();
+
+  try {
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    const sourceSampleRate = audioBuffer.sampleRate;
+
+    // Get samples from first channel (mono)
+    let samples = audioBuffer.getChannelData(0);
+
+    logAudioStats(samples, sourceSampleRate, 'mediarecorder-raw');
+
+    // Apply gain if not 1.0
+    if (gain !== 1.0) {
+      const gained = new Float32Array(samples.length);
+      for (let i = 0; i < samples.length; i++) {
+        gained[i] = Math.max(-1, Math.min(1, samples[i] * gain));
+      }
+      samples = gained;
+      logAudioStats(samples, sourceSampleRate, `mediarecorder-gained(${(gain * 100).toFixed(0)}%)`);
+    }
+
+    // Resample to 16kHz if needed
+    let resampled = samples;
+    if (sourceSampleRate !== TARGET_SAMPLE_RATE) {
+      resampled = await downsample(samples, sourceSampleRate, TARGET_SAMPLE_RATE);
+    }
+
+    logAudioStats(resampled, TARGET_SAMPLE_RATE, 'mediarecorder-resampled');
+
+    await audioContext.close();
+
+    // Re-encode as WAV
+    return encodeWAV(resampled, TARGET_SAMPLE_RATE);
+  } catch (err) {
+    await audioContext.close();
+    throw err;
+  }
+}

@@ -1,19 +1,25 @@
-import { useStore } from '../Store';
+import { useStore, type CaptureMethod } from '../Store';
 
 export function AudioSettings() {
   const {
     realtimeMode,
     chunkInterval,
     vadEnabled,
-    rawMicMode,
+    echoCancellation,
+    autoGainControl,
+    noiseSuppression,
     inputGain,
+    captureMethod,
     hasRecordedAudio,
     rawAudioUrl,
     processedAudioUrl,
     toggleRealtime,
     setChunkInterval,
-    toggleRawMicMode,
+    setEchoCancellation,
+    setAutoGainControl,
+    setNoiseSuppression,
     setInputGain,
+    setCaptureMethod,
     downloadRawAudio,
     downloadProcessedAudio,
   } = useStore();
@@ -50,24 +56,35 @@ export function AudioSettings() {
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <button
-          onClick={toggleRawMicMode}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: rawMicMode ? '#f59e0b' : 'transparent',
-            color: rawMicMode ? '#000' : 'inherit',
-            border: '1px solid',
-            borderColor: rawMicMode ? '#f59e0b' : '#666',
-            cursor: 'pointer',
-          }}
-          title="Disable browser audio processing (AGC, noise suppression, echo cancellation)"
-        >
-          Raw Mic: {rawMicMode ? 'ON' : 'OFF'}
-        </button>
-        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-          {rawMicMode ? 'No processing' : 'AGC + Noise suppression'}
-        </span>
+      {/* Browser Audio Processing Controls */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Browser Audio Processing:</span>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={echoCancellation}
+              onChange={(e) => setEchoCancellation(e.target.checked)}
+            />
+            Echo Cancel
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={autoGainControl}
+              onChange={(e) => setAutoGainControl(e.target.checked)}
+            />
+            Auto Gain
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={noiseSuppression}
+              onChange={(e) => setNoiseSuppression(e.target.checked)}
+            />
+            Noise Suppress
+          </label>
+        </div>
       </div>
 
       {/* Input Gain Control */}
@@ -84,6 +101,22 @@ export function AudioSettings() {
         />
         <span style={{ fontSize: '0.75rem', color: '#9ca3af', minWidth: '40px' }}>
           {(inputGain * 100).toFixed(0)}%
+        </span>
+      </div>
+
+      {/* Capture Method Selection */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <label style={{ minWidth: '80px' }}>Capture:</label>
+        <select
+          value={captureMethod}
+          onChange={(e) => setCaptureMethod(e.target.value as CaptureMethod)}
+          style={{ padding: '0.25rem 0.5rem' }}
+        >
+          <option value="worklet">AudioWorklet</option>
+          <option value="mediarecorder">MediaRecorder (WAV)</option>
+        </select>
+        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+          {captureMethod === 'worklet' ? 'Low latency' : 'Better quality'}
         </span>
       </div>
 

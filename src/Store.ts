@@ -1,7 +1,20 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { devtools, persist } from 'zustand/middleware';
-import { prepareAudioForTranscription, prepareAudioForDebug, transcribe } from './audio';
+import { MediaRecorder as ExtMediaRecorder, register } from 'extendable-media-recorder';
+import { connect as connectWavEncoder } from 'extendable-media-recorder-wav-encoder';
+import { prepareAudioForTranscription, prepareAudioForDebug, transcribe, resampleWavBlob } from './audio';
+
+// Initialize WAV encoder (runs once)
+let wavEncoderRegistered = false;
+async function ensureWavEncoder() {
+  if (wavEncoderRegistered) return;
+  await register(await connectWavEncoder());
+  wavEncoderRegistered = true;
+  console.log('WAV encoder registered');
+}
+
+export type CaptureMethod = 'worklet' | 'mediarecorder';
 
 // Audio resources kept outside Immer (mutable)
 const audioResources = {
@@ -11,6 +24,9 @@ const audioResources = {
   workletNode: null as AudioWorkletNode | null,
   // Fallback for browsers without AudioWorklet support
   processor: null as ScriptProcessorNode | null,
+  // MediaRecorder capture method
+  mediaRecorder: null as InstanceType<typeof ExtMediaRecorder> | null,
+  recordedBlobs: [] as Blob[],
   audioBuffer: [] as Float32Array[],
   chunkTimer: null as number | null,
   // Store last recording for debug downloads
@@ -18,6 +34,8 @@ const audioResources = {
     chunks: [] as Float32Array[],
     sampleRate: 0,
   },
+  // Store last WAV blob for MediaRecorder method
+  lastWavBlob: null as Blob | null,
 };
 
 // Resources for VAD gain-adjusted stream (separate from main capture)
@@ -64,14 +82,21 @@ export async function createGainAdjustedStream(
   return destination.stream;
 }
 
+// Audio processing settings type
+export type AudioProcessingSettings = {
+  echoCancellation: boolean;
+  autoGainControl: boolean;
+  noiseSuppression: boolean;
+};
+
 // Build microphone constraints based on settings
-function buildMicrophoneConstraints(disableProcessing: boolean): MediaTrackConstraints {
+function buildMicrophoneConstraints(settings: AudioProcessingSettings): MediaTrackConstraints {
   return {
     channelCount: 1,
     sampleRate: { ideal: 48000 },
-    echoCancellation: !disableProcessing,
-    autoGainControl: !disableProcessing,
-    noiseSuppression: !disableProcessing,
+    echoCancellation: settings.echoCancellation,
+    autoGainControl: settings.autoGainControl,
+    noiseSuppression: settings.noiseSuppression,
   };
 }
 
@@ -90,6 +115,8 @@ type State = {
   // Settings (persisted)
   serverUrl: string;
   language: string;
+  systemPrompt: string; // System prompt for ASR (e.g., spelling hints)
+  normalizeProbes: boolean; // Convert "L four fifteen" → "L-415"
   settingsOpen: boolean;
   realtimeMode: boolean;
   chunkInterval: number;
@@ -102,8 +129,11 @@ type State = {
   vadMinSpeechMs: number;
 
   // Audio capture settings
-  rawMicMode: boolean; // Disable browser audio processing (AGC, noise suppression, echo cancellation)
+  echoCancellation: boolean;
+  autoGainControl: boolean;
+  noiseSuppression: boolean;
   inputGain: number; // Input gain multiplier (0.1 to 1.0)
+  captureMethod: CaptureMethod; // 'worklet' or 'mediarecorder'
 
   // Realtime transcripts
   transcripts: string[];
@@ -126,6 +156,12 @@ type Actions = {
   toggleRecording: () => void;
   setServerUrl: (url: string) => void;
   setLanguage: (lang: string) => void;
+  setSystemPrompt: (prompt: string) => void;
+  fetchSystemPrompt: () => Promise<void>;
+  syncSystemPrompt: () => Promise<void>;
+  setNormalizeProbes: (enabled: boolean) => void;
+  fetchNormalizeProbes: () => Promise<void>;
+  syncNormalizeProbes: () => Promise<void>;
   toggleSettings: () => void;
   toggleRealtime: () => void;
   setChunkInterval: (seconds: number) => void;
@@ -140,8 +176,11 @@ type Actions = {
   checkServerHealth: () => Promise<void>;
   downloadRawAudio: () => void;
   downloadProcessedAudio: () => void;
-  toggleRawMicMode: () => void;
+  setEchoCancellation: (enabled: boolean) => void;
+  setAutoGainControl: (enabled: boolean) => void;
+  setNoiseSuppression: (enabled: boolean) => void;
   setInputGain: (gain: number) => void;
+  setCaptureMethod: (method: CaptureMethod) => void;
   prepareAudioPreview: () => Promise<void>;
 }
 
@@ -157,6 +196,8 @@ export const useStore = create<State & Actions>()(
         serverStatus: 'unknown' as ServerStatus,
         serverUrl: 'http://localhost:8080',
         language: 'English',
+        systemPrompt: '',
+        normalizeProbes: false,
         settingsOpen: false,
         realtimeMode: false,
         chunkInterval: DEFAULT_CHUNK_INTERVAL,
@@ -167,8 +208,11 @@ export const useStore = create<State & Actions>()(
         vadRedemptionMs: 800,
         vadPreSpeechPadMs: 500,
         vadMinSpeechMs: 250,
-        rawMicMode: false,
+        echoCancellation: true,
+        autoGainControl: true,
+        noiseSuppression: true,
         inputGain: 0.5,
+        captureMethod: 'worklet' as CaptureMethod,
         transcripts: [],
         vadStatus: '',
         asrStatus: '',
@@ -211,6 +255,98 @@ export const useStore = create<State & Actions>()(
           set((state) => {
             state.language = lang;
           });
+        },
+
+        setSystemPrompt: (prompt: string) => {
+          set((state) => {
+            state.systemPrompt = prompt;
+          });
+        },
+
+        fetchSystemPrompt: async () => {
+          const state = get();
+          const url = state.serverUrl.replace(/\/+$/, '');
+          try {
+            const response = await fetch(`${url}/prompt`, {
+              method: 'GET',
+              signal: AbortSignal.timeout(3000),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              set((s) => {
+                s.systemPrompt = data.prompt || '';
+              });
+            }
+          } catch {
+            // Ignore errors - server might not support prompt endpoint
+          }
+        },
+
+        syncSystemPrompt: async () => {
+          const state = get();
+          const url = state.serverUrl.replace(/\/+$/, '');
+          try {
+            const formData = new FormData();
+            formData.append('prompt', state.systemPrompt);
+            const response = await fetch(`${url}/prompt`, {
+              method: 'POST',
+              body: formData,
+              signal: AbortSignal.timeout(3000),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              console.log('System prompt synced:', data.status);
+            }
+          } catch (err) {
+            console.error('Failed to sync system prompt:', err);
+          }
+        },
+
+        setNormalizeProbes: (enabled: boolean) => {
+          set((state) => {
+            state.normalizeProbes = enabled;
+          });
+          // Immediately sync to server
+          get().syncNormalizeProbes();
+        },
+
+        fetchNormalizeProbes: async () => {
+          const state = get();
+          const url = state.serverUrl.replace(/\/+$/, '');
+          try {
+            const response = await fetch(`${url}/normalize`, {
+              method: 'GET',
+              signal: AbortSignal.timeout(3000),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              set((s) => {
+                s.normalizeProbes = data.normalize_probes || false;
+              });
+            }
+          } catch {
+            // Ignore errors - server might not support normalize endpoint
+          }
+        },
+
+        syncNormalizeProbes: async () => {
+          const state = get();
+          const url = state.serverUrl.replace(/\/+$/, '');
+          try {
+            const formData = new FormData();
+            formData.append('normalize_probes', state.normalizeProbes ? 'true' : 'false');
+            const response = await fetch(`${url}/normalize`, {
+              method: 'POST',
+              body: formData,
+              signal: AbortSignal.timeout(3000),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              console.log('Probe normalization synced:', data.normalize_probes);
+            }
+          } catch (err) {
+            console.error('Failed to sync normalize setting:', err);
+          }
         },
 
         toggleSettings: () => {
@@ -260,12 +396,24 @@ export const useStore = create<State & Actions>()(
           set((state) => { state.vadMinSpeechMs = Math.max(0, Math.round(v)); });
         },
 
-        toggleRawMicMode: () => {
-          set((state) => { state.rawMicMode = !state.rawMicMode; });
+        setEchoCancellation: (enabled: boolean) => {
+          set((state) => { state.echoCancellation = enabled; });
+        },
+
+        setAutoGainControl: (enabled: boolean) => {
+          set((state) => { state.autoGainControl = enabled; });
+        },
+
+        setNoiseSuppression: (enabled: boolean) => {
+          set((state) => { state.noiseSuppression = enabled; });
         },
 
         setInputGain: (gain: number) => {
           set((state) => { state.inputGain = Math.min(1, Math.max(0.1, gain)); });
+        },
+
+        setCaptureMethod: (method: CaptureMethod) => {
+          set((state) => { state.captureMethod = method; });
         },
 
         startRecording: async () => {
@@ -283,7 +431,11 @@ export const useStore = create<State & Actions>()(
           }
 
           try {
-            const constraints = buildMicrophoneConstraints(state.rawMicMode);
+            const constraints = buildMicrophoneConstraints({
+              echoCancellation: state.echoCancellation,
+              autoGainControl: state.autoGainControl,
+              noiseSuppression: state.noiseSuppression,
+            });
             const stream = await navigator.mediaDevices.getUserMedia({
               audio: constraints,
               video: false,
@@ -304,41 +456,66 @@ export const useStore = create<State & Actions>()(
             audioResources.gainNode = gainNode;
             console.log(`Input gain set to ${(state.inputGain * 100).toFixed(0)}%`);
 
-            // Clear previous buffer
+            // Clear previous buffers
             audioResources.audioBuffer = [];
+            audioResources.recordedBlobs = [];
+            audioResources.lastWavBlob = null;
 
-            // Try AudioWorklet first (modern, runs on audio thread)
-            let useWorklet = false;
-            if (audioContext.audioWorklet) {
-              try {
-                await audioContext.audioWorklet.addModule('/audio-capture-worklet.js');
-                const workletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
-                workletNode.port.onmessage = (event) => {
-                  if (event.data.type === 'audio') {
-                    audioResources.audioBuffer.push(new Float32Array(event.data.buffer));
-                  }
-                };
-                gainNode.connect(workletNode);
-                workletNode.connect(audioContext.destination);
-                audioResources.workletNode = workletNode;
-                useWorklet = true;
-                console.log('Using AudioWorklet for audio capture');
-              } catch (workletErr) {
-                console.warn('AudioWorklet failed, falling back to ScriptProcessorNode:', workletErr);
-              }
-            }
+            if (state.captureMethod === 'mediarecorder') {
+              // MediaRecorder capture method with WAV encoding
+              await ensureWavEncoder();
 
-            // Fallback to ScriptProcessorNode (deprecated but widely supported)
-            if (!useWorklet) {
-              const processor = audioContext.createScriptProcessor(4096, 1, 1);
-              processor.onaudioprocess = (e) => {
-                const input = e.inputBuffer.getChannelData(0);
-                audioResources.audioBuffer.push(new Float32Array(input));
+              // Create a destination stream with gain applied
+              const destination = audioContext.createMediaStreamDestination();
+              gainNode.connect(destination);
+
+              const mediaRecorder = new ExtMediaRecorder(destination.stream, {
+                mimeType: 'audio/wav',
+              });
+
+              mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                  audioResources.recordedBlobs.push(event.data);
+                }
               };
-              gainNode.connect(processor);
-              processor.connect(audioContext.destination);
-              audioResources.processor = processor;
-              console.log('Using ScriptProcessorNode for audio capture (fallback)');
+
+              mediaRecorder.start();
+              audioResources.mediaRecorder = mediaRecorder;
+              console.log('Using MediaRecorder with WAV encoding');
+            } else {
+              // AudioWorklet capture method (default)
+              let useWorklet = false;
+              if (audioContext.audioWorklet) {
+                try {
+                  await audioContext.audioWorklet.addModule('/audio-capture-worklet.js');
+                  const workletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
+                  workletNode.port.onmessage = (event) => {
+                    if (event.data.type === 'audio') {
+                      audioResources.audioBuffer.push(new Float32Array(event.data.buffer));
+                    }
+                  };
+                  gainNode.connect(workletNode);
+                  workletNode.connect(audioContext.destination);
+                  audioResources.workletNode = workletNode;
+                  useWorklet = true;
+                  console.log('Using AudioWorklet for audio capture');
+                } catch (workletErr) {
+                  console.warn('AudioWorklet failed, falling back to ScriptProcessorNode:', workletErr);
+                }
+              }
+
+              // Fallback to ScriptProcessorNode (deprecated but widely supported)
+              if (!useWorklet) {
+                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                processor.onaudioprocess = (e) => {
+                  const input = e.inputBuffer.getChannelData(0);
+                  audioResources.audioBuffer.push(new Float32Array(input));
+                };
+                gainNode.connect(processor);
+                processor.connect(audioContext.destination);
+                audioResources.processor = processor;
+                console.log('Using ScriptProcessorNode for audio capture (fallback)');
+              }
             }
 
             // Store references
@@ -424,15 +601,46 @@ export const useStore = create<State & Actions>()(
             audioResources.chunkTimer = null;
           }
 
-          // Capture audio state before cleanup
-          const audioBuffer = [...audioResources.audioBuffer]; // Copy for debug downloads
+          const wasRealtime = get().realtimeMode;
           const nativeSampleRate = audioResources.audioContext?.sampleRate || 48000;
+          let wavBlob: Blob | null = null;
+          let hasAudio = false;
 
-          // Store for debug downloads
-          audioResources.lastRecording = {
-            chunks: audioBuffer,
-            sampleRate: nativeSampleRate,
-          };
+          // Handle MediaRecorder capture method
+          if (audioResources.mediaRecorder && audioResources.mediaRecorder.state !== 'inactive') {
+            // Stop MediaRecorder and wait for final data
+            const recorder = audioResources.mediaRecorder;
+            const rawWavBlob = await new Promise<Blob>((resolve) => {
+              recorder.onstop = () => {
+                const blob = new Blob(audioResources.recordedBlobs, { type: 'audio/wav' });
+                resolve(blob);
+              };
+              recorder.stop();
+            });
+            hasAudio = rawWavBlob.size > 44; // WAV header is 44 bytes
+            audioResources.lastWavBlob = rawWavBlob;
+            console.log(`MediaRecorder stopped, WAV size: ${rawWavBlob.size} bytes`);
+
+            // Resample to 16kHz for the server
+            if (hasAudio) {
+              wavBlob = await resampleWavBlob(rawWavBlob);
+              console.log(`Resampled WAV size: ${wavBlob.size} bytes`);
+            }
+          } else {
+            // Handle worklet/ScriptProcessor capture method
+            const audioBuffer = [...audioResources.audioBuffer];
+            hasAudio = audioBuffer.length > 0;
+
+            // Store for debug downloads
+            audioResources.lastRecording = {
+              chunks: audioBuffer,
+              sampleRate: nativeSampleRate,
+            };
+
+            if (hasAudio) {
+              wavBlob = await prepareAudioForTranscription(audioBuffer, nativeSampleRate, true);
+            }
+          }
 
           // Cleanup audio resources
           audioResources.workletNode?.disconnect();
@@ -446,28 +654,44 @@ export const useStore = create<State & Actions>()(
           audioResources.gainNode = null;
           audioResources.workletNode = null;
           audioResources.processor = null;
+          audioResources.mediaRecorder = null;
           audioResources.audioBuffer = [];
+          audioResources.recordedBlobs = [];
 
-          const wasRealtime = get().realtimeMode;
+          // Clear old preview URLs to avoid stale URL errors
+          const oldState = get();
+          if (oldState.rawAudioUrl) URL.revokeObjectURL(oldState.rawAudioUrl);
+          if (oldState.processedAudioUrl) URL.revokeObjectURL(oldState.processedAudioUrl);
 
           set((s) => {
             s.isRecording = false;
-            s.isProcessing = audioBuffer.length > 0;
-            s.hasRecordedAudio = audioBuffer.length > 0;
-            s.statusMessage = audioBuffer.length > 0
+            s.isProcessing = hasAudio;
+            s.hasRecordedAudio = hasAudio;
+            s.rawAudioUrl = null;
+            s.processedAudioUrl = null;
+            s.statusMessage = hasAudio
               ? (wasRealtime ? 'Sending final chunk...' : 'Processing...')
               : (wasRealtime ? 'Realtime session ended.' : 'No audio recorded. Try again.');
           });
 
-          // Prepare audio preview URLs (non-blocking)
-          if (audioBuffer.length > 0) {
-            get().prepareAudioPreview();
+          // Prepare audio preview URLs
+          if (hasAudio) {
+            if (audioResources.lastWavBlob) {
+              // MediaRecorder: use WAV blob directly for preview
+              const wavUrl = URL.createObjectURL(audioResources.lastWavBlob);
+              set((s) => {
+                s.rawAudioUrl = wavUrl;
+                s.processedAudioUrl = wavUrl; // Same file for both (already WAV)
+              });
+            } else if (audioResources.lastRecording.chunks.length > 0) {
+              // Worklet: prepare preview from chunks
+              get().prepareAudioPreview();
+            }
           }
 
-          // Send remaining audio
-          if (audioBuffer.length > 0) {
+          // Send audio for transcription
+          if (wavBlob && hasAudio) {
             try {
-              const wavBlob = await prepareAudioForTranscription(audioBuffer, nativeSampleRate, true);
               const currentState = get();
               const result = await transcribe(
                 wavBlob,
@@ -484,7 +708,7 @@ export const useStore = create<State & Actions>()(
                   s.transcript = s.transcripts.join(' ');
                   s.statusMessage = 'Realtime session ended.';
                 } else if (!wasRealtime) {
-                  s.transcript = text; // Only show last transcript for non-realtime too
+                  s.transcript = text;
                   s.statusMessage = text
                     ? 'Click the sphere to record again.'
                     : 'No speech detected. Try again.';
@@ -566,6 +790,8 @@ export const useStore = create<State & Actions>()(
         partialize: (state) => ({
           serverUrl: state.serverUrl,
           language: state.language,
+          systemPrompt: state.systemPrompt,
+          normalizeProbes: state.normalizeProbes,
           realtimeMode: state.realtimeMode,
           chunkInterval: state.chunkInterval,
           vadEnabled: state.vadEnabled,
@@ -575,8 +801,11 @@ export const useStore = create<State & Actions>()(
           vadRedemptionMs: state.vadRedemptionMs,
           vadPreSpeechPadMs: state.vadPreSpeechPadMs,
           vadMinSpeechMs: state.vadMinSpeechMs,
-          rawMicMode: state.rawMicMode,
+          echoCancellation: state.echoCancellation,
+          autoGainControl: state.autoGainControl,
+          noiseSuppression: state.noiseSuppression,
           inputGain: state.inputGain,
+          captureMethod: state.captureMethod,
         }),
       }
     )
