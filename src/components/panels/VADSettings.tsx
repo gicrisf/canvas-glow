@@ -1,5 +1,6 @@
 import { useStore } from '../../Store';
 import { VAD_SYSTEMS } from '../../audio';
+import './FormControls.css';
 
 export function VADSettings() {
   const {
@@ -21,20 +22,12 @@ export function VADSettings() {
   } = useStore();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <div className="form-stack">
+      <div className="form-row">
         <button
           onClick={toggleVad}
           disabled={!realtimeMode}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: vadEnabled && realtimeMode ? '#60a5fa' : 'transparent',
-            color: vadEnabled && realtimeMode ? '#000' : 'inherit',
-            border: '1px solid',
-            borderColor: !realtimeMode ? '#444' : vadEnabled ? '#60a5fa' : '#666',
-            opacity: realtimeMode ? 1 : 0.4,
-            cursor: realtimeMode ? 'pointer' : 'not-allowed',
-          }}
+          className={`form-button form-button-toggle ${vadEnabled && realtimeMode ? 'vad-active' : ''} ${!realtimeMode ? 'form-section-disabled' : ''}`}
         >
           VAD: {vadEnabled && realtimeMode ? 'ON' : 'OFF'}
         </button>
@@ -42,7 +35,7 @@ export function VADSettings() {
           <select
             value={vadSystem}
             onChange={(e) => setVadSystem(e.target.value)}
-            style={{ padding: '0.25rem' }}
+            className="form-select"
           >
             {VAD_SYSTEMS.map((sys) => (
               <option key={sys} value={sys}>
@@ -54,51 +47,51 @@ export function VADSettings() {
       </div>
 
       {!realtimeMode && (
-        <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>
+        <p className="form-hint" style={{ margin: 0 }}>
           Enable Realtime mode to use VAD
         </p>
       )}
 
       {realtimeMode && vadEnabled && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 1rem', fontSize: '0.875rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+        <div className="form-grid-2col">
+          <label className="form-label">
             Positive:
             <input type="number" min={0} max={1} step={0.05}
               value={vadPositiveThreshold}
               onChange={(e) => setVadPositiveThreshold(Number(e.target.value))}
-              style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
+              className="form-input form-input-number"
             />
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <label className="form-label">
             Negative:
             <input type="number" min={0} max={1} step={0.05}
               value={vadNegativeThreshold}
               onChange={(e) => setVadNegativeThreshold(Number(e.target.value))}
-              style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
+              className="form-input form-input-number"
             />
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <label className="form-label">
             Redemption:
             <input type="number" min={0} step={100}
               value={vadRedemptionMs}
               onChange={(e) => setVadRedemptionMs(Number(e.target.value))}
-              style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
+              className="form-input form-input-number"
             />ms
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <label className="form-label">
             Pre-speech:
             <input type="number" min={0} step={100}
               value={vadPreSpeechPadMs}
               onChange={(e) => setVadPreSpeechPadMs(Number(e.target.value))}
-              style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
+              className="form-input form-input-number"
             />ms
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <label className="form-label">
             Min speech:
             <input type="number" min={0} step={100}
               value={vadMinSpeechMs}
               onChange={(e) => setVadMinSpeechMs(Number(e.target.value))}
-              style={{ width: '4rem', padding: '0.2rem', textAlign: 'center' }}
+              className="form-input form-input-number"
             />ms
           </label>
         </div>

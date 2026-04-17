@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '../../Store';
 import { LANGUAGES } from '../../audio';
+import './FormControls.css';
 
 export function ASRSettings() {
   const {
@@ -32,13 +33,13 @@ export function ASRSettings() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <div className="form-stack">
+      <label className="form-label">
         Language:
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
-          style={{ flex: 1, padding: '0.25rem' }}
+          className="form-select form-input-flex"
         >
           {LANGUAGES.map((lang) => (
             <option key={lang} value={lang}>
@@ -48,40 +49,29 @@ export function ASRSettings() {
         </select>
       </label>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="form-stack">
+        <div className="form-row" style={{ justifyContent: 'space-between' }}>
           <span>System Prompt:</span>
-          <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>
-            Syncs to server on blur
-          </span>
-        </label>
+          <span className="form-hint">Syncs to server on blur</span>
+        </div>
         <textarea
           value={systemPrompt}
           onChange={(e) => handlePromptChange(e.target.value)}
           onBlur={handlePromptBlur}
           placeholder="e.g., Preserve spelling: JFK, NASA, OpenAI"
           rows={2}
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            fontSize: '0.875rem',
-            fontFamily: 'inherit',
-            resize: 'vertical',
-            minHeight: '3rem',
-          }}
+          className="form-textarea"
         />
       </div>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+      <label className="form-label">
         <input
           type="checkbox"
           checked={normalizeProbes}
           onChange={(e) => setNormalizeProbes(e.target.checked)}
         />
         <span>Normalize probe names</span>
-        <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>
-          "L four fifteen" → "L-415"
-        </span>
+        <span className="form-hint">"L four fifteen" → "L-415"</span>
       </label>
     </div>
   );

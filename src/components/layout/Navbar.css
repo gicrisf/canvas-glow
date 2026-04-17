@@ -7,10 +7,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
+  height: var(--navbar-height);
+  padding: 0 2rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
 }
 
 .navbar-title {
@@ -23,21 +23,13 @@
 .navbar-status {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  font-family: 'IBM Plex Mono', monospace;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  transition: background-color 0.3s ease;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
 }
 
 .status-text {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--color-text-muted);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.05em;

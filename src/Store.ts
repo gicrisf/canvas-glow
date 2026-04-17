@@ -119,6 +119,7 @@ type State = {
   normalizeProbes: boolean; // Convert "L four fifteen" → "L-415"
   settingsOpen: boolean;
   heroExpanded: boolean;
+  sectionState: Record<string, boolean>; // Collapsible section open/close state
   realtimeMode: boolean;
   chunkInterval: number;
   vadEnabled: boolean;
@@ -184,6 +185,7 @@ type Actions = {
   setInputGain: (gain: number) => void;
   setCaptureMethod: (method: CaptureMethod) => void;
   prepareAudioPreview: () => Promise<void>;
+  setSectionOpen: (section: string, isOpen: boolean) => void;
 }
 
 export const useStore = create<State & Actions>()(
@@ -202,6 +204,7 @@ export const useStore = create<State & Actions>()(
         normalizeProbes: false,
         settingsOpen: false,
         heroExpanded: true,
+        sectionState: { server: true, asr: false, audio: false, vad: false },
         realtimeMode: false,
         chunkInterval: DEFAULT_CHUNK_INTERVAL,
         vadEnabled: false,
@@ -423,6 +426,10 @@ export const useStore = create<State & Actions>()(
 
         setCaptureMethod: (method: CaptureMethod) => {
           set((state) => { state.captureMethod = method; });
+        },
+
+        setSectionOpen: (section: string, isOpen: boolean) => {
+          set((state) => { state.sectionState[section] = isOpen; });
         },
 
         startRecording: async () => {
@@ -802,6 +809,7 @@ export const useStore = create<State & Actions>()(
           systemPrompt: state.systemPrompt,
           normalizeProbes: state.normalizeProbes,
           heroExpanded: state.heroExpanded,
+          sectionState: state.sectionState,
           realtimeMode: state.realtimeMode,
           chunkInterval: state.chunkInterval,
           vadEnabled: state.vadEnabled,

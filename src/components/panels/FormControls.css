@@ -1,0 +1,204 @@
+/* IBM Terminal Form Controls */
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.form-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.form-input {
+  height: var(--input-height);
+  padding: 0 var(--space-xs);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--border-radius);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  box-sizing: border-box;
+}
+
+.form-input-flex {
+  flex: 1;
+}
+
+.form-input-narrow {
+  width: 3.5rem;
+  text-align: center;
+}
+
+.form-input-number {
+  width: 4rem;
+  text-align: center;
+}
+
+.form-select {
+  height: var(--input-height);
+  padding: 0 var(--space-xs);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--border-radius);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+}
+
+.form-textarea {
+  width: 100%;
+  padding: var(--space-xs);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--border-radius);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  resize: vertical;
+  min-height: calc(var(--line-height) * 2);
+  line-height: var(--line-height);
+  box-sizing: border-box;
+}
+
+.form-button {
+  height: var(--input-height);
+  padding: 0 var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--input-border);
+  border-radius: var(--border-radius);
+  color: inherit;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.form-button:hover {
+  border-color: var(--color-text-muted);
+}
+
+.form-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.form-button-active {
+  background: var(--color-ok);
+  border-color: var(--color-ok);
+  color: #000;
+}
+
+.form-button-toggle {
+  padding: 0 var(--space-md);
+}
+
+.form-button-toggle.active {
+  background: var(--color-ok);
+  border-color: var(--color-ok);
+  color: #000;
+}
+
+.form-button-toggle.vad-active {
+  background: #60a5fa;
+  border-color: #60a5fa;
+  color: #000;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.form-label-inline {
+  min-width: 80px;
+}
+
+.form-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.form-status-ok {
+  color: var(--color-ok);
+}
+
+.form-status-error {
+  color: var(--color-error);
+}
+
+.form-status-warning {
+  color: var(--color-warning);
+}
+
+.form-status-unknown {
+  color: var(--color-text-muted);
+}
+
+.form-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xs) var(--space-md);
+  font-size: var(--font-size-sm);
+}
+
+.form-divider {
+  border-top: 1px solid var(--input-border);
+  padding-top: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.form-group-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-xs);
+}
+
+.form-checkbox-group {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.form-range {
+  flex: 1;
+  max-width: 150px;
+}
+
+.form-range-value {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  min-width: 40px;
+}
+
+.form-audio-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.form-audio-label {
+  font-size: var(--font-size-xs);
+  min-width: 70px;
+}
+
+.form-audio-player {
+  height: 32px;
+  flex: 1;
+}
+
+.form-section-disabled {
+  opacity: 0.4;
+}

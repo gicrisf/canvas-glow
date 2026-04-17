@@ -5,23 +5,24 @@ export function Navbar() {
   const { isRecording, isProcessing } = useStore();
 
   // Determine status text and color
-  let statusText = 'Idle';
-  let statusColor = '#6b7280'; // grey
+  let statusText = 'IDLE';
+  let statusColor = 'var(--color-idle)';
 
   if (isProcessing) {
-    statusText = 'Processing';
-    statusColor = '#9370db'; // medium purple
+    statusText = 'PROCESSING';
+    statusColor = 'var(--color-processing)';
   } else if (isRecording) {
-    statusText = 'Listening';
-    statusColor = '#ff69b4'; // hot pink
+    statusText = 'LISTENING';
+    statusColor = 'var(--color-recording)';
   }
 
   return (
     <nav className="navbar">
       <h1 className="navbar-title">I heard the canvas glow</h1>
       <div className="navbar-status">
-        <span className="status-dot" style={{ backgroundColor: statusColor }}></span>
-        <span className="status-text">{statusText}</span>
+        <span className="status-text" style={{ color: statusColor }}>
+          ● {statusText}
+        </span>
       </div>
     </nav>
   );

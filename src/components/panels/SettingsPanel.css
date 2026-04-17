@@ -3,8 +3,8 @@
 }
 
 .settings-title {
-  margin: 0 0 1rem 0;
-  font-size: 0.9rem;
+  margin: 0 0 var(--space-md) 0;
+  font-size: var(--font-size-sm);
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -12,11 +12,11 @@
 }
 
 .settings-sections {
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--color-border);
 }
 
 .settings-section {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .settings-section:last-child {
@@ -25,17 +25,18 @@
 
 .settings-section-header {
   width: 100%;
-  padding: 0.75rem 1rem;
+  height: var(--line-height);
+  padding: var(--space-sm) var(--space-md);
   text-align: left;
   background: transparent;
   border: none;
+  border-radius: 0;
   color: inherit;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: background 0.15s ease;
 }
 
 .settings-section-header:hover {
@@ -44,9 +45,9 @@
 
 .settings-section-toggle {
   opacity: 0.4;
-  font-size: 0.9rem;
+  font-size: var(--font-size-xs);
 }
 
 .settings-section-content {
-  padding: 0 1rem 1rem;
+  padding: 0 var(--space-md) var(--space-md);
 }

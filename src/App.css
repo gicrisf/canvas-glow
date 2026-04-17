@@ -7,11 +7,11 @@
 
 .status-messages {
   text-align: left;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .status-messages p {
-  margin: 0.25rem 0;
-  font-size: 0.8rem;
+  margin: var(--space-xs) 0;
+  font-size: var(--font-size-sm);
   opacity: 0.8;
 }

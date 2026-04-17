@@ -1,4 +1,5 @@
 import { useStore } from '../../Store';
+import './FormControls.css';
 
 export function ServerSettings() {
   const {
@@ -8,24 +9,23 @@ export function ServerSettings() {
     checkServerHealth,
   } = useStore();
 
+  const statusClass =
+    serverStatus === 'ok' ? 'form-status-ok' :
+    serverStatus === 'error' ? 'form-status-error' :
+    serverStatus === 'loading' ? 'form-status-warning' : 'form-status-unknown';
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <div className="form-stack">
+      <div className="form-row">
         <input
           type="text"
           value={serverUrl}
           onChange={(e) => setServerUrl(e.target.value)}
           placeholder="http://localhost:8080"
-          style={{ flex: 1, padding: '0.25rem' }}
+          className="form-input form-input-flex"
         />
-        <span style={{
-          color: serverStatus === 'ok' ? '#4ade80' :
-                 serverStatus === 'error' ? '#f87171' :
-                 serverStatus === 'loading' ? '#fbbf24' : '#9ca3af'
-        }}>
-          {serverStatus}
-        </span>
-        <button onClick={checkServerHealth} style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}>
+        <span className={statusClass}>{serverStatus}</span>
+        <button onClick={checkServerHealth} className="form-button">
           Check
         </button>
       </div>
