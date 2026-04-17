@@ -27,7 +27,7 @@ export function VADSettings() {
         <button
           onClick={toggleVad}
           disabled={!realtimeMode}
-          className={`form-button form-button-toggle ${vadEnabled && realtimeMode ? 'vad-active' : ''} ${!realtimeMode ? 'form-section-disabled' : ''}`}
+          className={`form-button form-button-toggle ${vadEnabled && realtimeMode ? 'active' : ''} ${!realtimeMode ? 'form-section-disabled' : ''}`}
         >
           VAD: {vadEnabled && realtimeMode ? 'ON' : 'OFF'}
         </button>

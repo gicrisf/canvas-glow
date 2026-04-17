@@ -3,7 +3,7 @@ import { immer } from 'zustand/middleware/immer';
 import { devtools, persist } from 'zustand/middleware';
 import { MediaRecorder as ExtMediaRecorder, register } from 'extendable-media-recorder';
 import { connect as connectWavEncoder } from 'extendable-media-recorder-wav-encoder';
-import { prepareAudioForTranscription, prepareAudioForDebug, transcribe, resampleWavBlob } from './audio';
+import { prepareAudioForTranscription, prepareAudioForDebug, transcribe, resampleWavBlob, type TranscriptionResult } from './audio';
 
 // Initialize WAV encoder (runs once)
 let wavEncoderRegistered = false;
@@ -142,9 +142,18 @@ type State = {
 
   // VAD status
   vadStatus: string;
+  vadLoading: boolean;
 
   // ASR status
   asrStatus: string;
+
+  // RT tracking for analytics
+  rtHistory: Array<{
+    timestamp: number;      // Date.now()
+    rtFactor: number;       // Realtime factor from API
+    totalMs: number;        // Total inference time
+    tokS: number;           // Tokens per second
+  }>;
 
   // Debug: audio preview and download
   hasRecordedAudio: boolean;
@@ -186,6 +195,7 @@ type Actions = {
   setCaptureMethod: (method: CaptureMethod) => void;
   prepareAudioPreview: () => Promise<void>;
   setSectionOpen: (section: string, isOpen: boolean) => void;
+  addRTDataPoint: (result: TranscriptionResult) => void;
 }
 
 export const useStore = create<State & Actions>()(
@@ -221,7 +231,9 @@ export const useStore = create<State & Actions>()(
         captureMethod: 'worklet' as CaptureMethod,
         transcripts: [],
         vadStatus: '',
+        vadLoading: false,
         asrStatus: '',
+        rtHistory: [],
         hasRecordedAudio: false,
         rawAudioUrl: null,
         processedAudioUrl: null,
@@ -432,6 +444,22 @@ export const useStore = create<State & Actions>()(
           set((state) => { state.sectionState[section] = isOpen; });
         },
 
+        addRTDataPoint: (result: TranscriptionResult) => {
+          set((s) => {
+            s.rtHistory.push({
+              timestamp: Date.now(),
+              rtFactor: result.rt_factor,
+              totalMs: result.total_ms,
+              tokS: result.tok_s,
+            });
+
+            // Keep only last 50 points (rolling window)
+            if (s.rtHistory.length > 50) {
+              s.rtHistory.shift();
+            }
+          });
+        },
+
         startRecording: async () => {
           const state = get();
           if (state.isRecording || state.isProcessing) return;
@@ -564,6 +592,8 @@ export const useStore = create<State & Actions>()(
                     get().serverUrl,
                     get().language || undefined
                   );
+
+                  get().addRTDataPoint(result);
 
                   const text = result.text?.trim();
                   if (text) {
@@ -714,6 +744,8 @@ export const useStore = create<State & Actions>()(
                 currentState.serverUrl,
                 currentState.language || undefined
               );
+
+              get().addRTDataPoint(result);
 
               const text = result.text?.trim() || '';
 

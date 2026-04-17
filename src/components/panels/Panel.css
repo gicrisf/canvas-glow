@@ -1,0 +1,52 @@
+.panel {
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--space-md);
+}
+
+.panel-header {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.panel-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-title {
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.panel-toggle {
+  opacity: 0.4;
+  font-size: var(--font-size-xs);
+}
+
+.panel-status-line {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.panel-content {
+  padding: 0 var(--space-md) var(--space-md);
+}

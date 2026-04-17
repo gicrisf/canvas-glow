@@ -1,0 +1,31 @@
+.rt-plot-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.rt-line-plot {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rt-variance-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-sm);
+}
+
+.rt-variance-plot {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rt-plot-empty {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: var(--space-md) 0;
+  text-align: center;
+}

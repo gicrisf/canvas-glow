@@ -1,7 +1,18 @@
-.transcript-inline {
-  color: #60a5fa;
+.transcript-content {
   font-size: var(--font-size-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: var(--line-height);
+  word-wrap: break-word;
+}
+
+.transcript-previous {
+  color: var(--color-text-muted);
+}
+
+.transcript-latest {
+  color: #60a5fa; /* Blue - highlights the most recent transcript */
+}
+
+.transcript-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
 }
