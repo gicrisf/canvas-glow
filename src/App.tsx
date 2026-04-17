@@ -3,17 +3,20 @@ import { useMicVAD } from '@ricky0123/vad-react'
 import './App.css'
 import { useStore, createGainAdjustedStream } from './Store';
 import { encodeWAV, transcribe } from './audio';
-import { SettingsPanel } from './components/SettingsPanel';
+
+// Layout components
+import { Layout, Navbar, Hero, Columns, Column, Footer } from './components/layout';
+
+// Panel components
+import { SettingsPanel, AnalyticsPanel, TranscriptPanel } from './components/panels';
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const {
     isRecording,
     isProcessing,
-    transcript,
     statusMessage,
     serverUrl,
-    settingsOpen,
     realtimeMode,
     vadEnabled,
     vadSystem,
@@ -26,7 +29,6 @@ function App() {
     vadMinSpeechMs,
     inputGain,
     toggleRecording,
-    toggleSettings,
     checkServerHealth,
   } = useStore();
 
@@ -206,43 +208,48 @@ function App() {
   }, [serverUrl, checkServerHealth]);
 
   return (
-    <div>
-      <h1>I heard the canvas glow</h1>
-      <h3>&gt; {statusMessage}</h3>
-      {realtimeMode && vadEnabled && vadSystem === 'silero' && vad.loading && (
-        <h3 style={{ color: '#fbbf24' }}>&gt; Loading Silero VAD model...</h3>
-      )}
-      {realtimeMode && vadEnabled && vadSystem !== 'silero' && (
-        <h3 style={{ color: '#f87171' }}>&gt; VAD system "{vadSystem}" not yet implemented</h3>
-      )}
-      {realtimeMode && vadEnabled && vadStatus && (
-        <h3 style={{ color: '#9ca3af' }}>&gt; {vadStatus}</h3>
-      )}
-      {asrStatus && (
-        <h3 style={{ color: '#c084fc' }}>&gt; ASR: {asrStatus}</h3>
-      )}
-      <canvas
-        ref={canvasRef}
-        width="800"
-        height="600"
-        style={{ cursor: isProcessing ? 'wait' : 'pointer' }}
-      />
+    <Layout>
+      <Navbar />
 
-      {transcript && (
-        <div style={{ marginTop: '1rem', maxWidth: '800px' }}>
-          <h3>Transcript:</h3>
-          <p style={{ fontSize: '1.2rem', lineHeight: 1.6 }}>{transcript}</p>
+      <Hero>
+        <div className="hero-canvas">
+          <canvas
+            ref={canvasRef}
+            width="300"
+            height="200"
+            style={{ cursor: isProcessing ? 'wait' : 'pointer' }}
+          />
         </div>
-      )}
+        <div className="status-messages">
+          <p>&gt; {statusMessage}</p>
+          {realtimeMode && vadEnabled && vadSystem === 'silero' && vad.loading && (
+            <p style={{ color: '#fbbf24' }}>&gt; Loading Silero VAD model...</p>
+          )}
+          {realtimeMode && vadEnabled && vadSystem !== 'silero' && (
+            <p style={{ color: '#f87171' }}>&gt; VAD system "{vadSystem}" not yet implemented</p>
+          )}
+          {realtimeMode && vadEnabled && vadStatus && (
+            <p style={{ color: '#9ca3af' }}>&gt; {vadStatus}</p>
+          )}
+          {asrStatus && (
+            <p style={{ color: '#c084fc' }}>&gt; ASR: {asrStatus}</p>
+          )}
+        </div>
+      </Hero>
 
-      <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <button onClick={toggleSettings}>
-          {settingsOpen ? '− Settings' : '+ Settings'}
-        </button>
+      <Columns>
+        <Column>
+          <SettingsPanel />
+        </Column>
+        <Column>
+          <AnalyticsPanel />
+        </Column>
+      </Columns>
 
-        {settingsOpen && <SettingsPanel />}
-      </div>
-    </div>
+      <Footer>
+        <TranscriptPanel />
+      </Footer>
+    </Layout>
   )
 }
 

@@ -1,6 +1,17 @@
+/* IBM Corporate-inspired full-width layout */
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.status-messages {
+  text-align: left;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.status-messages p {
+  margin: 0.25rem 0;
+  font-size: 0.8rem;
+  opacity: 0.8;
 }

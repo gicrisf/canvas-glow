@@ -1,5 +1,5 @@
-import { useStore } from '../Store';
-import { VAD_SYSTEMS } from '../audio';
+import { useStore } from '../../Store';
+import { VAD_SYSTEMS } from '../../audio';
 
 export function VADSettings() {
   const {

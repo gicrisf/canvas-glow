@@ -1,0 +1,52 @@
+.settings-panel {
+  width: 100%;
+}
+
+.settings-title {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.settings-sections {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-section:last-child {
+  border-bottom: none;
+}
+
+.settings-section-header {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.15s ease;
+}
+
+.settings-section-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.settings-section-toggle {
+  opacity: 0.4;
+  font-size: 0.9rem;
+}
+
+.settings-section-content {
+  padding: 0 1rem 1rem;
+}

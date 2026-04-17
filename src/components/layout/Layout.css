@@ -1,0 +1,139 @@
+/* IBM Corporate-inspired layout */
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Hero section - collapsible */
+.hero {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 2rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hero-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.hero-toggle {
+  font-size: 0.8rem;
+  opacity: 0.5;
+}
+
+.hero-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+  padding: 1rem 2rem 2rem;
+}
+
+.hero-canvas {
+  flex-shrink: 0;
+}
+
+.hero-canvas canvas {
+  display: block;
+}
+
+/* Collapsed hero - minimal control */
+.hero-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 2rem;
+}
+
+.record-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.record-button.idle {
+  border-color: #6b7280;
+  color: #6b7280;
+}
+
+.record-button.idle:hover {
+  border-color: #9ca3af;
+  color: #9ca3af;
+}
+
+.record-button.recording {
+  border-color: #ff69b4;
+  color: #ff69b4;
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+.record-button.processing {
+  border-color: #9370db;
+  color: #9370db;
+}
+
+@keyframes pulse-border {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.record-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Columns - equal width, full viewport */
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+}
+
+.column {
+  padding: 1.5rem 2rem;
+  min-width: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.column:last-child {
+  border-right: none;
+}
+
+/* Responsive: stack columns */
+@media (max-width: 1024px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+
+  .column {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .column:last-child {
+    border-bottom: none;
+  }
+}
+
+/* Footer */
+.footer {
+  padding: 1rem 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}

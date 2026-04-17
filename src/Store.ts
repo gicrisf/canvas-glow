@@ -118,6 +118,7 @@ type State = {
   systemPrompt: string; // System prompt for ASR (e.g., spelling hints)
   normalizeProbes: boolean; // Convert "L four fifteen" → "L-415"
   settingsOpen: boolean;
+  heroExpanded: boolean;
   realtimeMode: boolean;
   chunkInterval: number;
   vadEnabled: boolean;
@@ -163,6 +164,7 @@ type Actions = {
   fetchNormalizeProbes: () => Promise<void>;
   syncNormalizeProbes: () => Promise<void>;
   toggleSettings: () => void;
+  toggleHero: () => void;
   toggleRealtime: () => void;
   setChunkInterval: (seconds: number) => void;
   toggleVad: () => void;
@@ -199,6 +201,7 @@ export const useStore = create<State & Actions>()(
         systemPrompt: '',
         normalizeProbes: false,
         settingsOpen: false,
+        heroExpanded: true,
         realtimeMode: false,
         chunkInterval: DEFAULT_CHUNK_INTERVAL,
         vadEnabled: false,
@@ -352,6 +355,12 @@ export const useStore = create<State & Actions>()(
         toggleSettings: () => {
           set((state) => {
             state.settingsOpen = !state.settingsOpen;
+          });
+        },
+
+        toggleHero: () => {
+          set((state) => {
+            state.heroExpanded = !state.heroExpanded;
           });
         },
 
@@ -792,6 +801,7 @@ export const useStore = create<State & Actions>()(
           language: state.language,
           systemPrompt: state.systemPrompt,
           normalizeProbes: state.normalizeProbes,
+          heroExpanded: state.heroExpanded,
           realtimeMode: state.realtimeMode,
           chunkInterval: state.chunkInterval,
           vadEnabled: state.vadEnabled,

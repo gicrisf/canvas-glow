@@ -1,4 +1,4 @@
-import { useStore, type CaptureMethod } from '../Store';
+import { useStore, type CaptureMethod } from '../../Store';
 
 export function AudioSettings() {
   const {

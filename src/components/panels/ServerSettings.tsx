@@ -1,4 +1,4 @@
-import { useStore } from '../Store';
+import { useStore } from '../../Store';
 
 export function ServerSettings() {
   const {

@@ -1,0 +1,57 @@
+.transcript-panel {
+  width: 100%;
+}
+
+.transcript-panel h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+}
+
+.transcript-container {
+  position: relative;
+  max-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Hide scrollbar but keep functionality */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.transcript-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Fade effect at the top when content overflows */
+.transcript-container.has-overflow::before {
+  content: '';
+  position: sticky;
+  top: 0;
+  display: block;
+  height: 40px;
+  margin-bottom: -40px;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.8) 40%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.transcript-content {
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+
+.transcript-line {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.transcript-line.latest {
+  color: #60a5fa; /* Primary blue */
+}

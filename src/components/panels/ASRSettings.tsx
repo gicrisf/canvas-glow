@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { useStore } from '../Store';
-import { LANGUAGES } from '../audio';
+import { useStore } from '../../Store';
+import { LANGUAGES } from '../../audio';
 
 export function ASRSettings() {
   const {
