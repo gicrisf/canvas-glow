@@ -10,6 +10,7 @@ export interface TranscriptionResult {
   tokens: number;
   tok_s: number;
   rt_factor: number;
+  audio_ms: number;  // Audio duration as measured by the server
 }
 
 /**
@@ -162,6 +163,27 @@ export async function transcribe(
   }
 
   return response.json();
+}
+
+let requestCounter = 0;
+
+/**
+ * Generate a unique request ID.
+ */
+export function generateRequestId(): string {
+  return `req-${Date.now()}-${++requestCounter}`;
+}
+
+/**
+ * Calculate audio duration in milliseconds from a WAV blob.
+ * Assumes 16-bit PCM mono at 16kHz (our standard format).
+ */
+export function getWavDurationMs(wavBlob: Blob): number {
+  // WAV header is 44 bytes, then 16-bit samples at 16kHz
+  const dataBytes = wavBlob.size - 44;
+  const samples = dataBytes / 2; // 16-bit = 2 bytes per sample
+  const durationSeconds = samples / TARGET_SAMPLE_RATE;
+  return durationSeconds * 1000;
 }
 
 /**

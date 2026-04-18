@@ -1,0 +1,141 @@
+.latency-empty {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: var(--space-md) 0;
+  text-align: center;
+}
+
+.latency-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.latency-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.latency-bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 16px;
+}
+
+.latency-bar-index {
+  font-size: 9px;
+  color: var(--color-text-dim);
+  width: 16px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.latency-bar-container {
+  flex: 1;
+  display: flex;
+  height: 12px;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+}
+
+.latency-bar-server {
+  height: 100%;
+  background: #60a5fa; /* Blue - matches RT plot */
+  flex-shrink: 0;
+}
+
+.latency-bar-overhead {
+  height: 100%;
+  background: #fb923c; /* Orange - matches variance plot */
+  flex-shrink: 0;
+}
+
+.latency-bar-value {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.latency-legend {
+  display: flex;
+  gap: var(--space-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-xs);
+}
+
+.latency-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.latency-legend-color {
+  width: 12px;
+  height: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.latency-legend-server {
+  background: #60a5fa;
+}
+
+.latency-legend-overhead {
+  background: #fb923c;
+}
+
+.latency-stats {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-sm);
+}
+
+.latency-pending {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.latency-pending-header {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-xs);
+}
+
+.latency-pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.latency-pending-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+}
+
+.latency-pending-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.latency-pending-audio {
+  color: var(--color-text-dim);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

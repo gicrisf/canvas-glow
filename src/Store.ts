@@ -3,7 +3,7 @@ import { immer } from 'zustand/middleware/immer';
 import { devtools, persist } from 'zustand/middleware';
 import { MediaRecorder as ExtMediaRecorder, register } from 'extendable-media-recorder';
 import { connect as connectWavEncoder } from 'extendable-media-recorder-wav-encoder';
-import { prepareAudioForTranscription, prepareAudioForDebug, transcribe, resampleWavBlob, type TranscriptionResult } from './audio';
+import { prepareAudioForTranscription, prepareAudioForDebug, transcribe, resampleWavBlob, generateRequestId, getWavDurationMs, type TranscriptionResult } from './audio';
 
 // Initialize WAV encoder (runs once)
 let wavEncoderRegistered = false;
@@ -149,12 +149,30 @@ type State = {
   // ASR status
   asrStatus: string;
 
-  // RT tracking for analytics
+  // RT tracking for analytics (server-side metrics)
   rtHistory: Array<{
     timestamp: number;      // Date.now()
     rtFactor: number;       // Realtime factor from API
     totalMs: number;        // Total inference time
     tokS: number;           // Tokens per second
+  }>;
+
+  // E2E request tracking (client-side measurement)
+  requestHistory: Array<{
+    requestId: string;
+    timestamp: number;        // When request completed
+    audioDurationMs: number;  // Audio duration
+    serverTotalMs: number;    // Server processing time (from API)
+    e2eMs: number;            // End-to-end latency (request sent → response received)
+    overheadMs: number;       // Network + queuing overhead (e2eMs - serverTotalMs)
+    overheadPercent: number;  // Overhead as percentage of E2E
+  }>;
+
+  // Pending requests
+  pendingRequests: Array<{
+    requestId: string;
+    startTime: number;        // Date.now() when request was sent
+    audioDurationMs: number;  // Audio duration for context
   }>;
 
   // Debug: audio preview and download
@@ -199,6 +217,9 @@ type Actions = {
   prepareAudioPreview: () => Promise<void>;
   setSectionOpen: (section: string, isOpen: boolean) => void;
   addRTDataPoint: (result: TranscriptionResult) => void;
+  // E2E request tracking
+  trackRequestStart: (requestId: string, audioDurationMs: number) => void;
+  trackRequestComplete: (requestId: string, result: TranscriptionResult) => void;
 }
 
 // Helper function to generate recording status message based on current settings
@@ -234,7 +255,7 @@ export const useStore = create<State & Actions>()(
         normalizeProbes: false,
         settingsOpen: false,
         heroExpanded: true,
-        sectionState: { server: true, asr: false, audio: false, vad: false },
+        sectionState: { server: true, asr: false, audio: false, vad: false, analytics: false, latency: true },
         realtimeMode: false,
         chunkInterval: DEFAULT_CHUNK_INTERVAL,
         vadEnabled: false,
@@ -254,6 +275,8 @@ export const useStore = create<State & Actions>()(
         vadLoading: false,
         asrStatus: '',
         rtHistory: [],
+        requestHistory: [],
+        pendingRequests: [],
         hasRecordedAudio: false,
         rawAudioUrl: null,
         processedAudioUrl: null,
@@ -483,6 +506,56 @@ export const useStore = create<State & Actions>()(
           });
         },
 
+        trackRequestStart: (requestId: string, audioDurationMs: number) => {
+          set((s) => {
+            s.pendingRequests.push({
+              requestId,
+              startTime: Date.now(),
+              audioDurationMs,
+            });
+          });
+        },
+
+        trackRequestComplete: (requestId: string, result: TranscriptionResult) => {
+          set((s) => {
+            const endTime = Date.now();
+            const pendingIndex = s.pendingRequests.findIndex(r => r.requestId === requestId);
+
+            if (pendingIndex === -1) {
+              console.warn(`Request ${requestId} not found in pending requests`);
+              return;
+            }
+
+            const pending = s.pendingRequests[pendingIndex];
+            const e2eMs = endTime - pending.startTime;
+            const serverTotalMs = result.total_ms;
+            const overheadMs = e2eMs - serverTotalMs;
+            const overheadPercent = (overheadMs / e2eMs) * 100;
+
+            // Use server's audio_ms for accurate duration
+            const audioDurationMs = result.audio_ms;
+
+            // Add to request history
+            s.requestHistory.push({
+              requestId,
+              timestamp: endTime,
+              audioDurationMs,
+              serverTotalMs,
+              e2eMs,
+              overheadMs,
+              overheadPercent,
+            });
+
+            // Keep only last 50 points
+            if (s.requestHistory.length > 50) {
+              s.requestHistory.shift();
+            }
+
+            // Remove from pending
+            s.pendingRequests.splice(pendingIndex, 1);
+          });
+        },
+
         startRecording: async () => {
           const state = get();
           if (state.isRecording || state.isProcessing) return;
@@ -609,9 +682,16 @@ export const useStore = create<State & Actions>()(
                 audioResources.audioBuffer = [];
                 const nativeRate = audioResources.audioContext?.sampleRate || 48000;
 
+                const requestId = generateRequestId();
+
                 try {
                   const wavBlob = await prepareAudioForTranscription(chunks, nativeRate);
+                  const audioDurationMs = getWavDurationMs(wavBlob);
+
                   set((s) => { s.isProcessing = true; });
+
+                  // Track request start
+                  get().trackRequestStart(requestId, audioDurationMs);
 
                   const result = await transcribe(
                     wavBlob,
@@ -619,6 +699,8 @@ export const useStore = create<State & Actions>()(
                     get().language || undefined
                   );
 
+                  // Track request completion
+                  get().trackRequestComplete(requestId, result);
                   get().addRTDataPoint(result);
 
                   const text = result.text?.trim();
@@ -629,6 +711,10 @@ export const useStore = create<State & Actions>()(
                     });
                   }
                 } catch (err) {
+                  // Remove from pending on error
+                  set((s) => {
+                    s.pendingRequests = s.pendingRequests.filter(r => r.requestId !== requestId);
+                  });
                   console.error('Chunk transcription failed:', err);
                 } finally {
                   set((s) => { s.isProcessing = false; });
@@ -776,6 +862,12 @@ export const useStore = create<State & Actions>()(
 
           // Send audio for transcription
           if (wavBlob && hasAudio) {
+            const requestId = generateRequestId();
+            const audioDurationMs = getWavDurationMs(wavBlob);
+
+            // Track request start
+            get().trackRequestStart(requestId, audioDurationMs);
+
             try {
               const currentState = get();
               const result = await transcribe(
@@ -784,6 +876,8 @@ export const useStore = create<State & Actions>()(
                 currentState.language || undefined
               );
 
+              // Track request completion
+              get().trackRequestComplete(requestId, result);
               get().addRTDataPoint(result);
 
               const text = result.text?.trim() || '';
@@ -806,6 +900,10 @@ export const useStore = create<State & Actions>()(
                 }
               });
             } catch (err) {
+              // Remove from pending on error
+              set((s) => {
+                s.pendingRequests = s.pendingRequests.filter(r => r.requestId !== requestId);
+              });
               let message = 'Transcription failed';
               if (err instanceof TypeError && err.message.includes('fetch')) {
                 message = 'Server unreachable. Check Settings.';

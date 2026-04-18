@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback } from 'react'
 import { useMicVAD } from '@ricky0123/vad-react'
 import './App.css'
 import { useStore, createGainAdjustedStream } from './Store';
-import { encodeWAV, transcribe } from './audio';
+import { encodeWAV, transcribe, generateRequestId } from './audio';
 
 // Layout components
 import { Layout, Navbar, Hero, Columns, Column, Footer } from './components/layout';
@@ -11,7 +11,7 @@ import { Layout, Navbar, Hero, Columns, Column, Footer } from './components/layo
 import { ASRPanel } from './components/panels/ASRPanel';
 import { AudioPanel } from './components/panels/AudioPanel';
 import { VADPanel } from './components/panels/VADPanel';
-import { AnalyticsPanel, TranscriptPanel } from './components/panels';
+import { AnalyticsPanel, TranscriptPanel, LatencyPanel } from './components/panels';
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -72,17 +72,26 @@ function App() {
         return;
       }
 
+      const audioDurationMs = (audio.length / 16000) * 1000; // 16kHz sample rate
       useStore.setState({
-        vadStatus: `Speech end — ${Math.round(audio.length / 16)}ms (min ${state.vadMinSpeechMs}ms)`,
+        vadStatus: `Speech end — ${Math.round(audioDurationMs)}ms (min ${state.vadMinSpeechMs}ms)`,
         isSpeaking: false,
       });
 
       const wavBlob = encodeWAV(audio, 16000);
+      const requestId = generateRequestId();
+
+      // Track request start
+      useStore.getState().trackRequestStart(requestId, audioDurationMs);
 
       try {
         const result = await transcribe(wavBlob, state.serverUrl, state.language || undefined);
         const text = result.text?.trim();
+
+        // Track request completion (includes E2E metrics)
+        useStore.getState().trackRequestComplete(requestId, result);
         useStore.getState().addRTDataPoint(result);
+
         useStore.setState({
           asrStatus: `${result.total_ms.toFixed(0)}ms, ${result.tok_s.toFixed(1)} tok/s, rt ${result.rt_factor.toFixed(2)}`,
         });
@@ -98,6 +107,10 @@ function App() {
           });
         }
       } catch (err) {
+        // Remove from pending on error
+        useStore.setState((s) => ({
+          pendingRequests: s.pendingRequests.filter(r => r.requestId !== requestId),
+        }));
         useStore.setState({
           statusMessage: `Transcription error: ${err instanceof Error ? err.message : 'unknown'}`,
         });
@@ -253,6 +266,7 @@ function App() {
         <Column>
           <VADPanel />
           <AnalyticsPanel />
+          <LatencyPanel />
           <TranscriptPanel />
         </Column>
       </Columns>
