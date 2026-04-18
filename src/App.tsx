@@ -8,7 +8,6 @@ import { encodeWAV, transcribe } from './audio';
 import { Layout, Navbar, Hero, Columns, Column, Footer } from './components/layout';
 
 // Panel components
-import { ServerPanel } from './components/panels/ServerPanel';
 import { ASRPanel } from './components/panels/ASRPanel';
 import { AudioPanel } from './components/panels/AudioPanel';
 import { VADPanel } from './components/panels/VADPanel';
@@ -19,6 +18,7 @@ function App() {
   const {
     isRecording,
     isProcessing,
+    isFinalizing,
     statusMessage,
     serverUrl,
     realtimeMode,
@@ -53,20 +53,30 @@ function App() {
     getStream,
     onSpeechStart: useCallback(() => {
       if (!isRecording || !realtimeMode || !vadEnabled || vadSystem !== 'silero') return;
-      useStore.setState({ vadStatus: 'Speech start detected' });
+      useStore.setState({ vadStatus: 'Speech start detected', isSpeaking: true });
       useStore.setState({ isProcessing: true });
     }, [isRecording, realtimeMode, vadEnabled, vadSystem]),
 
     onSpeechRealStart: useCallback(() => {
       if (!isRecording || !realtimeMode || !vadEnabled || vadSystem !== 'silero') return;
-      useStore.setState({ vadStatus: 'Speech real start' });
+      useStore.setState({ vadStatus: 'Speech real start', isSpeaking: true });
     }, [isRecording, realtimeMode, vadEnabled, vadSystem]),
 
     onSpeechEnd: useCallback(async (audio: Float32Array) => {
       if (!isRecording || !realtimeMode || !vadEnabled || vadSystem !== 'silero') return;
-      useStore.setState({ vadStatus: `Speech end — ${Math.round(audio.length / 16)}ms (min ${useStore.getState().vadMinSpeechMs}ms)` });
 
       const state = useStore.getState();
+      // Skip if finalizing
+      if (state.isFinalizing) {
+        useStore.setState({ vadStatus: 'Speech detected but finalizing (skipped)', isSpeaking: false });
+        return;
+      }
+
+      useStore.setState({
+        vadStatus: `Speech end — ${Math.round(audio.length / 16)}ms (min ${state.vadMinSpeechMs}ms)`,
+        isSpeaking: false,
+      });
+
       const wavBlob = encodeWAV(audio, 16000);
 
       try {
@@ -77,14 +87,20 @@ function App() {
           asrStatus: `${result.total_ms.toFixed(0)}ms, ${result.tok_s.toFixed(1)} tok/s, rt ${result.rt_factor.toFixed(2)}`,
         });
         if (text) {
-          useStore.setState({ vadStatus: `Received: "${text}"` });
           useStore.setState({
             transcripts: [...state.transcripts, text],
             transcript: text, // Only show last transcript
+            statusMessage: `Transcribed: "${text}"`,
+          });
+        } else {
+          useStore.setState({
+            statusMessage: 'No speech detected in segment.',
           });
         }
       } catch (err) {
-        useStore.setState({ vadStatus: `Error: ${err instanceof Error ? err.message : 'unknown'}` });
+        useStore.setState({
+          statusMessage: `Transcription error: ${err instanceof Error ? err.message : 'unknown'}`,
+        });
       } finally {
         useStore.setState({ isProcessing: false });
       }
@@ -92,7 +108,7 @@ function App() {
 
     onVADMisfire: useCallback(() => {
       if (!isRecording || !realtimeMode || !vadEnabled || vadSystem !== 'silero') return;
-      useStore.setState({ vadStatus: `VAD misfire (min ${useStore.getState().vadMinSpeechMs}ms)` });
+      useStore.setState({ vadStatus: `VAD misfire (min ${useStore.getState().vadMinSpeechMs}ms)`, isSpeaking: false });
     }, [isRecording, realtimeMode, vadEnabled, vadSystem]),
   });
 
@@ -112,10 +128,11 @@ function App() {
   }, [isRecording, realtimeMode, vad, vadEnabled, vadSystem, vad.loading, vad.start, vad.pause]);
 
   // Refs for animation state (avoids restarting the loop on every change)
-  const animState = useRef({ isRecording: false, isProcessing: false, isSpeaking: false });
+  const animState = useRef({ isRecording: false, isProcessing: false, isFinalizing: false, isSpeaking: false });
   animState.current = {
     isRecording,
     isProcessing,
+    isFinalizing,
     isSpeaking: realtimeMode && vadEnabled && vad.userSpeaking,
   };
 
@@ -134,12 +151,12 @@ function App() {
 
     const draw = () => {
       const { width, height } = canvas;
-      const { isRecording, isProcessing, isSpeaking } = animState.current;
+      const { isRecording, isProcessing, isFinalizing, isSpeaking } = animState.current;
 
       // Clear
       ctx.clearRect(0, 0, width, height);
 
-      if (!isRecording && !isProcessing) {
+      if (!isRecording && !isProcessing && !isFinalizing) {
         // Grey static circle when idle
         ctx.shadowBlur = 0;
         ctx.fillStyle = 'grey';
@@ -147,15 +164,17 @@ function App() {
         ctx.arc(width / 2, height / 2, 35, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        // Pulsing circle when recording or processing (no movement, just pulse)
+        // Pulsing circle when recording, processing, or finalizing (no movement, just pulse)
         ctx.shadowBlur = 15;
 
-        // Cyan when speaking, purple when processing, pink when recording
-        const color = isSpeaking
-          ? { r: 0, g: 255, b: 255 }   // Cyan when VAD detects speech
-          : isProcessing
-            ? { r: 147, g: 112, b: 219 } // Medium purple
-            : { r: 255, g: 105, b: 180 }; // Hot pink
+        // Orange when finalizing, cyan when speaking, purple when processing, pink when recording
+        const color = isFinalizing
+          ? { r: 255, g: 165, b: 0 }   // Orange when finalizing
+          : isSpeaking
+            ? { r: 0, g: 255, b: 255 }   // Cyan when VAD detects speech
+            : isProcessing
+              ? { r: 147, g: 112, b: 219 } // Medium purple
+              : { r: 255, g: 105, b: 180 }; // Hot pink
 
         ctx.shadowColor = `rgba(${color.r}, ${color.g}, ${color.b}, 0.8)`;
 
@@ -221,14 +240,13 @@ function App() {
             ref={canvasRef}
             width="150"
             height="100"
-            style={{ cursor: isProcessing ? 'wait' : 'pointer' }}
+            style={{ cursor: 'pointer' }}
           />
         </div>
       </Hero>
 
       <Columns>
         <Column>
-          <ServerPanel />
           <ASRPanel />
           <AudioPanel />
         </Column>

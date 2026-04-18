@@ -23,6 +23,7 @@ export function VADSettings() {
 
   return (
     <div className="form-stack">
+      {/* Row 1: VAD Toggle + System Selector */}
       <div className="form-row">
         <button
           onClick={toggleVad}
@@ -31,18 +32,22 @@ export function VADSettings() {
         >
           VAD: {vadEnabled && realtimeMode ? 'ON' : 'OFF'}
         </button>
+
         {realtimeMode && vadEnabled && (
-          <select
-            value={vadSystem}
-            onChange={(e) => setVadSystem(e.target.value)}
-            className="form-select"
-          >
-            {VAD_SYSTEMS.map((sys) => (
-              <option key={sys} value={sys}>
-                {sys}
-              </option>
-            ))}
-          </select>
+          <>
+            <span className="form-separator">•</span>
+            <select
+              value={vadSystem}
+              onChange={(e) => setVadSystem(e.target.value)}
+              className="form-select"
+            >
+              {VAD_SYSTEMS.map((sys) => (
+                <option key={sys} value={sys}>
+                  {sys}
+                </option>
+              ))}
+            </select>
+          </>
         )}
       </div>
 
@@ -52,48 +57,98 @@ export function VADSettings() {
         </p>
       )}
 
-      {realtimeMode && vadEnabled && (
-        <div className="form-grid-2col">
-          <label className="form-label">
-            Positive:
-            <input type="number" min={0} max={1} step={0.05}
-              value={vadPositiveThreshold}
-              onChange={(e) => setVadPositiveThreshold(Number(e.target.value))}
-              className="form-input form-input-number"
-            />
-          </label>
-          <label className="form-label">
-            Negative:
-            <input type="number" min={0} max={1} step={0.05}
-              value={vadNegativeThreshold}
-              onChange={(e) => setVadNegativeThreshold(Number(e.target.value))}
-              className="form-input form-input-number"
-            />
-          </label>
-          <label className="form-label">
-            Redemption:
-            <input type="number" min={0} step={100}
-              value={vadRedemptionMs}
-              onChange={(e) => setVadRedemptionMs(Number(e.target.value))}
-              className="form-input form-input-number"
-            />ms
-          </label>
-          <label className="form-label">
-            Pre-speech:
-            <input type="number" min={0} step={100}
-              value={vadPreSpeechPadMs}
-              onChange={(e) => setVadPreSpeechPadMs(Number(e.target.value))}
-              className="form-input form-input-number"
-            />ms
-          </label>
-          <label className="form-label">
-            Min speech:
-            <input type="number" min={0} step={100}
-              value={vadMinSpeechMs}
-              onChange={(e) => setVadMinSpeechMs(Number(e.target.value))}
-              className="form-input form-input-number"
-            />ms
-          </label>
+      {/* Row 2: Silero VAD Settings */}
+      {realtimeMode && vadEnabled && vadSystem === 'silero' && (
+        <div className="form-stack">
+          {/* Thresholds Group */}
+          <div className="form-group">
+            <span className="form-group-label">Thresholds:</span>
+
+            <div className="form-input-row">
+              <label className="form-input-label">Positive</label>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={vadPositiveThreshold}
+                onChange={(e) => setVadPositiveThreshold(Number(e.target.value))}
+                className="form-input form-input-number"
+              />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={vadPositiveThreshold}
+                onChange={(e) => setVadPositiveThreshold(Number(e.target.value))}
+                className="form-range"
+              />
+            </div>
+
+            <div className="form-input-row">
+              <label className="form-input-label">Negative</label>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={vadNegativeThreshold}
+                onChange={(e) => setVadNegativeThreshold(Number(e.target.value))}
+                className="form-input form-input-number"
+              />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={vadNegativeThreshold}
+                onChange={(e) => setVadNegativeThreshold(Number(e.target.value))}
+                className="form-range"
+              />
+            </div>
+          </div>
+
+          {/* Timing Group */}
+          <div className="form-group">
+            <span className="form-group-label">Timing (ms):</span>
+
+            <div className="form-input-row">
+              <label className="form-input-label">Redemption</label>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={vadRedemptionMs}
+                onChange={(e) => setVadRedemptionMs(Number(e.target.value))}
+                className="form-input form-input-number"
+              />
+            </div>
+
+            <div className="form-input-row">
+              <label className="form-input-label">Pre-speech</label>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={vadPreSpeechPadMs}
+                onChange={(e) => setVadPreSpeechPadMs(Number(e.target.value))}
+                className="form-input form-input-number"
+              />
+            </div>
+
+            <div className="form-input-row">
+              <label className="form-input-label">Min speech</label>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={vadMinSpeechMs}
+                onChange={(e) => setVadMinSpeechMs(Number(e.target.value))}
+                className="form-input form-input-number"
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

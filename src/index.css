@@ -26,6 +26,8 @@
   --color-processing: #9370db;
   --color-recording: #ff69b4;
   --color-idle: #6b7280;
+  --color-speech: #00ffff;
+  --color-finalizing: #ffa500;
 
   /* Layout */
   --input-height: var(--line-height);

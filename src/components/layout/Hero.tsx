@@ -23,7 +23,7 @@ export function Hero({ children }: HeroProps) {
   return (
     <section className="hero">
       <div className="hero-header" onClick={toggleHero}>
-        <span>Visualizer</span>
+        <span></span>
         <span className="hero-toggle">{heroExpanded ? '▼' : '▶'}</span>
       </div>
 

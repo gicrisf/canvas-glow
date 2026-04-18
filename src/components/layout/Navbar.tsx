@@ -2,13 +2,19 @@ import { useStore } from '../../Store';
 import './Navbar.css';
 
 export function Navbar() {
-  const { isRecording, isProcessing } = useStore();
+  const { isRecording, isProcessing, isFinalizing, isSpeaking } = useStore();
 
-  // Determine status text and color
+  // Determine status text and color (priority order)
   let statusText = 'IDLE';
   let statusColor = 'var(--color-idle)';
 
-  if (isProcessing) {
+  if (isFinalizing) {
+    statusText = 'FINALIZING';
+    statusColor = 'var(--color-finalizing)';
+  } else if (isSpeaking) {
+    statusText = 'SPEECH';
+    statusColor = 'var(--color-speech)';
+  } else if (isProcessing) {
     statusText = 'PROCESSING';
     statusColor = 'var(--color-processing)';
   } else if (isRecording) {

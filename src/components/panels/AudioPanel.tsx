@@ -6,7 +6,7 @@ export function AudioPanel() {
   const { captureMethod, realtimeMode } = useStore();
 
   const captureLabel = captureMethod === 'worklet' ? 'AudioWorklet' : 'MediaRecorder';
-  const modeLabel = realtimeMode ? 'Realtime ON' : 'Single Recording';
+  const modeLabel = realtimeMode ? 'ON' : 'OFF';
 
   return (
     <Panel
@@ -16,7 +16,7 @@ export function AudioPanel() {
         <>
           <span>{captureLabel}</span>
           <span>•</span>
-          <span>{modeLabel}</span>
+          <span>Realtime {modeLabel}</span>
         </>
       }
     >

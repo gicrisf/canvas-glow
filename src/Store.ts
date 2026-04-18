@@ -108,6 +108,8 @@ type State = {
   // Recording state
   isRecording: boolean;
   isProcessing: boolean;
+  isFinalizing: boolean; // Waiting for pending API calls to complete
+  isSpeaking: boolean; // VAD detected active speech
   transcript: string;
   statusMessage: string;
   serverStatus: ServerStatus;
@@ -164,6 +166,7 @@ type State = {
 type Actions = {
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
+  abortSession: () => void;
   toggleRecording: () => void;
   setServerUrl: (url: string) => void;
   setLanguage: (lang: string) => void;
@@ -198,6 +201,21 @@ type Actions = {
   addRTDataPoint: (result: TranscriptionResult) => void;
 }
 
+// Helper function to generate recording status message based on current settings
+function getRecordingStatusMessage(state: State): string {
+  if (!state.isRecording) {
+    return state.statusMessage; // Keep existing message when not recording
+  }
+
+  if (state.realtimeMode && state.vadEnabled) {
+    return 'Realtime mode: sending when speech detected. Click to stop.';
+  } else if (state.realtimeMode) {
+    return `Realtime mode: streaming every ${state.chunkInterval}s. Click to stop.`;
+  } else {
+    return 'Recording... Click to stop.';
+  }
+}
+
 export const useStore = create<State & Actions>()(
   devtools(
     persist(
@@ -205,6 +223,8 @@ export const useStore = create<State & Actions>()(
         // Initial state
         isRecording: false,
         isProcessing: false,
+        isFinalizing: false,
+        isSpeaking: false,
         transcript: '',
         statusMessage: 'Click the sphere to start recording.',
         serverStatus: 'unknown' as ServerStatus,
@@ -382,6 +402,7 @@ export const useStore = create<State & Actions>()(
         toggleRealtime: () => {
           set((state) => {
             state.realtimeMode = !state.realtimeMode;
+            state.statusMessage = getRecordingStatusMessage(state);
           });
         },
 
@@ -389,12 +410,14 @@ export const useStore = create<State & Actions>()(
           const n = Math.max(1, Math.round(seconds));
           set((state) => {
             state.chunkInterval = n;
+            state.statusMessage = getRecordingStatusMessage(state);
           });
         },
 
         toggleVad: () => {
           set((state) => {
             state.vadEnabled = !state.vadEnabled;
+            state.statusMessage = getRecordingStatusMessage(state);
           });
         },
 
@@ -576,6 +599,9 @@ export const useStore = create<State & Actions>()(
 
               // Start chunk timer
               const flushChunk = async () => {
+                // Skip if finalizing
+                if (get().isFinalizing) return;
+
                 const chunks = audioResources.audioBuffer;
                 if (chunks.length === 0) return;
 
@@ -614,11 +640,7 @@ export const useStore = create<State & Actions>()(
 
             set((s) => {
               s.isRecording = true;
-              s.statusMessage = currentState.realtimeMode
-                ? (get().vadEnabled
-                  ? 'Realtime mode: sending when speech detected. Click to stop.'
-                  : `Realtime mode: streaming every ${get().chunkInterval}s. Click to stop.`)
-                : 'Recording... Click to stop.';
+              s.statusMessage = getRecordingStatusMessage({ ...s, isRecording: true });
             });
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Microphone access denied';
@@ -636,7 +658,18 @@ export const useStore = create<State & Actions>()(
           if (state.realtimeMode && state.vadEnabled) {
             set((s) => {
               s.isRecording = false;
-              s.statusMessage = 'Realtime session ended.';
+              s.isSpeaking = false;
+              if (s.isFinalizing) {
+                s.statusMessage = s.isProcessing
+                  ? 'Finalizing... Click to abort.'
+                  : 'Session ended.';
+                // Reset finalizing after processing completes
+                if (!s.isProcessing) {
+                  s.isFinalizing = false;
+                }
+              } else {
+                s.statusMessage = 'Realtime session ended.';
+              }
             });
             return;
           }
@@ -715,9 +748,15 @@ export const useStore = create<State & Actions>()(
             s.hasRecordedAudio = hasAudio;
             s.rawAudioUrl = null;
             s.processedAudioUrl = null;
-            s.statusMessage = hasAudio
-              ? (wasRealtime ? 'Sending final chunk...' : 'Processing...')
-              : (wasRealtime ? 'Realtime session ended.' : 'No audio recorded. Try again.');
+            if (s.isFinalizing) {
+              s.statusMessage = hasAudio
+                ? 'Processing final chunk... Click to abort.'
+                : 'Finalizing complete.';
+            } else {
+              s.statusMessage = hasAudio
+                ? (wasRealtime ? 'Sending final chunk...' : 'Processing...')
+                : (wasRealtime ? 'Realtime session ended.' : 'No audio recorded. Try again.');
+            }
           });
 
           // Prepare audio preview URLs
@@ -751,12 +790,16 @@ export const useStore = create<State & Actions>()(
 
               set((s) => {
                 s.isProcessing = false;
+                s.isFinalizing = false;
                 if (wasRealtime && text) {
                   s.transcripts = [...s.transcripts, text];
                   s.transcript = s.transcripts.join(' ');
                   s.statusMessage = 'Realtime session ended.';
                 } else if (!wasRealtime) {
                   s.transcript = text;
+                  if (text) {
+                    s.transcripts = [...s.transcripts, text];
+                  }
                   s.statusMessage = text
                     ? 'Click the sphere to record again.'
                     : 'No speech detected. Try again.';
@@ -771,6 +814,7 @@ export const useStore = create<State & Actions>()(
               }
               set((s) => {
                 s.isProcessing = false;
+                s.isFinalizing = false;
                 s.serverStatus = 'error';
                 s.statusMessage = `Error: ${message}`;
               });
@@ -778,13 +822,60 @@ export const useStore = create<State & Actions>()(
           }
         },
 
+        abortSession: () => {
+          // Clear chunk timer
+          if (audioResources.chunkTimer) {
+            clearInterval(audioResources.chunkTimer);
+            audioResources.chunkTimer = null;
+          }
+
+          // Cleanup audio resources immediately
+          audioResources.workletNode?.disconnect();
+          audioResources.processor?.disconnect();
+          audioResources.gainNode?.disconnect();
+          audioResources.mediaStream?.getTracks().forEach(t => t.stop());
+          audioResources.audioContext?.close().catch(() => {});
+          audioResources.mediaRecorder?.stop();
+
+          audioResources.audioContext = null;
+          audioResources.mediaStream = null;
+          audioResources.gainNode = null;
+          audioResources.workletNode = null;
+          audioResources.processor = null;
+          audioResources.mediaRecorder = null;
+          audioResources.audioBuffer = [];
+          audioResources.recordedBlobs = [];
+
+          set((s) => {
+            s.isRecording = false;
+            s.isProcessing = false;
+            s.isFinalizing = false;
+            s.isSpeaking = false;
+            s.statusMessage = 'Session aborted. Click to start again.';
+          });
+        },
+
         toggleRecording: () => {
           const state = get();
-          if (state.isProcessing) return; // Ignore clicks while processing
 
+          // If finalizing: abort everything
+          if (state.isFinalizing) {
+            get().abortSession();
+            return;
+          }
+
+          // If recording: enter finalizing state
           if (state.isRecording) {
+            set((s) => {
+              s.isFinalizing = true;
+              s.statusMessage = 'Finalizing... Click again to abort.';
+            });
             state.stopRecording();
-          } else {
+            return;
+          }
+
+          // If idle: start recording normally
+          if (!state.isProcessing) {
             state.startRecording();
           }
         },

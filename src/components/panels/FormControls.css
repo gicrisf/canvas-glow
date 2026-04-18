@@ -20,8 +20,8 @@
 }
 
 .form-input {
-  height: var(--input-height);
-  padding: 0 var(--space-xs);
+  height: 2em;
+  padding: 0 var(--space-sm);
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: var(--border-radius);
@@ -36,18 +36,30 @@
 }
 
 .form-input-narrow {
-  width: 3.5rem;
+  width: 4.5rem;
   text-align: center;
 }
 
 .form-input-number {
-  width: 4rem;
+  width: 5rem;
   text-align: center;
 }
 
+/* Hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .form-select {
-  height: var(--input-height);
-  padding: 0 var(--space-xs);
+  height: 2em;
+  padding: 0 var(--space-sm);
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: var(--border-radius);
@@ -72,8 +84,8 @@
 }
 
 .form-button {
-  height: var(--input-height);
-  padding: 0 var(--space-sm);
+  height: 2em;
+  padding: 0 var(--space-md);
   background: transparent;
   border: 1px solid var(--input-border);
   border-radius: var(--border-radius);
@@ -169,6 +181,58 @@
 .form-range {
   flex: 1;
   max-width: 150px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Track */
+.form-range::-webkit-slider-track {
+  height: 1px;
+  background: var(--color-text-dim);
+}
+
+.form-range::-moz-range-track {
+  height: 1px;
+  background: var(--color-text-dim);
+}
+
+/* Thumb */
+.form-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--color-text);
+  border: none;
+  border-radius: 0;
+  margin-top: -3.5px;
+}
+
+.form-range::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  background: var(--color-text);
+  border: none;
+  border-radius: 0;
+}
+
+/* Focus state */
+.form-range:focus {
+  outline: none;
+}
+
+.form-range:focus::-webkit-slider-thumb {
+  background: var(--color-text);
+  outline: 1px solid var(--color-text-muted);
+  outline-offset: 2px;
+}
+
+.form-range:focus::-moz-range-thumb {
+  background: var(--color-text);
+  outline: 1px solid var(--color-text-muted);
+  outline-offset: 2px;
 }
 
 .form-range-value {
@@ -191,8 +255,104 @@
 .form-audio-player {
   height: 32px;
   flex: 1;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--border-radius);
+}
+
+/* Style audio player controls - WebKit/Chrome/Safari */
+.form-audio-player::-webkit-media-controls-panel {
+  background: var(--input-bg);
+}
+
+.form-audio-player::-webkit-media-controls-enclosure {
+  background: var(--input-bg);
+}
+
+.form-audio-player::-webkit-media-controls-timeline-container {
+  height: auto;
+}
+
+.form-audio-player::-webkit-media-controls-timeline {
+  background: transparent;
+  border-radius: 0;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+}
+
+/* Remove the default slider track styling */
+.form-audio-player::-webkit-media-slider-container {
+  height: 1px;
+  background: var(--color-text-dim);
+  border-radius: 0;
+}
+
+/* Style the slider thumb */
+.form-audio-player::-webkit-media-slider-thumb {
+  width: 8px;
+  height: 8px;
+  background: var(--color-text);
+  border: none;
+  border-radius: 0;
+  margin-top: -3.5px;
+}
+
+.form-audio-player::-webkit-media-controls-current-time-display,
+.form-audio-player::-webkit-media-controls-time-remaining-display {
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+}
+
+.form-audio-player::-webkit-media-controls-play-button,
+.form-audio-player::-webkit-media-controls-mute-button {
+  filter: brightness(0.7);
 }
 
 .form-section-disabled {
   opacity: 0.4;
+}
+
+/* Form groups for VAD settings */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-top: var(--space-xs);
+}
+
+.form-slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.form-slider-label {
+  min-width: 70px;
+  font-size: var(--font-size-sm);
+}
+
+.form-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.form-input-label {
+  min-width: 90px;
+  font-size: var(--font-size-sm);
+}
+
+.form-separator {
+  color: var(--color-text-dim);
+  font-size: var(--font-size-xs);
+  user-select: none;
+}
+
+.custom-audio-player {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 1;
 }

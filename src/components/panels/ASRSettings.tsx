@@ -9,6 +9,8 @@ export function ASRSettings() {
     systemPrompt,
     normalizeProbes,
     serverUrl,
+    setServerUrl,
+    checkServerHealth,
     setLanguage,
     setSystemPrompt,
     fetchSystemPrompt,
@@ -34,8 +36,24 @@ export function ASRSettings() {
 
   return (
     <div className="form-stack">
-      <label className="form-label">
-        Language:
+      {/* Server Address */}
+      <div className="form-input-row">
+        <label className="form-input-label">Server address</label>
+        <input
+          type="text"
+          value={serverUrl}
+          onChange={(e) => setServerUrl(e.target.value)}
+          placeholder="http://localhost:8080"
+          className="form-input form-input-flex"
+        />
+        <button onClick={checkServerHealth} className="form-button">
+          Check
+        </button>
+      </div>
+
+      {/* Language */}
+      <div className="form-input-row">
+        <label className="form-input-label">Language</label>
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
@@ -47,11 +65,12 @@ export function ASRSettings() {
             </option>
           ))}
         </select>
-      </label>
+      </div>
 
-      <div className="form-stack">
+      {/* System Prompt */}
+      <div className="form-group">
         <div className="form-row" style={{ justifyContent: 'space-between' }}>
-          <span>System Prompt:</span>
+          <label className="form-group-label">System Prompt</label>
           <span className="form-hint">Syncs to server on blur</span>
         </div>
         <textarea
@@ -64,6 +83,7 @@ export function ASRSettings() {
         />
       </div>
 
+      {/* Normalize Probes */}
       <label className="form-label">
         <input
           type="checkbox"
