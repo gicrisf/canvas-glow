@@ -166,6 +166,7 @@ type State = {
     e2eMs: number;            // End-to-end latency (request sent → response received)
     overheadMs: number;       // Network + queuing overhead (e2eMs - serverTotalMs)
     overheadPercent: number;  // Overhead as percentage of E2E
+    wasQueued: boolean;       // True if other requests were pending when this started
   }>;
 
   // Pending requests
@@ -173,6 +174,7 @@ type State = {
     requestId: string;
     startTime: number;        // Date.now() when request was sent
     audioDurationMs: number;  // Audio duration for context
+    wasQueued: boolean;       // True if other requests were pending when this started
   }>;
 
   // Debug: audio preview and download
@@ -508,10 +510,13 @@ export const useStore = create<State & Actions>()(
 
         trackRequestStart: (requestId: string, audioDurationMs: number) => {
           set((s) => {
+            // If there are already pending requests, this one is queued
+            const wasQueued = s.pendingRequests.length > 0;
             s.pendingRequests.push({
               requestId,
               startTime: Date.now(),
               audioDurationMs,
+              wasQueued,
             });
           });
         },
@@ -544,6 +549,7 @@ export const useStore = create<State & Actions>()(
               e2eMs,
               overheadMs,
               overheadPercent,
+              wasQueued: pending.wasQueued,
             });
 
             // Keep only last 50 points

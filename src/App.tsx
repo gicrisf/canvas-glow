@@ -96,11 +96,12 @@ function App() {
           asrStatus: `${result.total_ms.toFixed(0)}ms, ${result.tok_s.toFixed(1)} tok/s, rt ${result.rt_factor.toFixed(2)}`,
         });
         if (text) {
-          useStore.setState({
-            transcripts: [...state.transcripts, text],
+          // Use functional update to get current transcripts (avoid race with concurrent requests)
+          useStore.setState((s) => ({
+            transcripts: [...s.transcripts, text],
             transcript: text, // Only show last transcript
             statusMessage: `Transcribed: "${text}"`,
-          });
+          }));
         } else {
           useStore.setState({
             statusMessage: 'No speech detected in segment.',

@@ -55,19 +55,23 @@ export function LatencyPanel() {
         <div className="latency-empty">No requests yet</div>
       ) : (
         <>
-          {/* Stacked bar chart */}
+          {/* Stacked bar chart - latest on top */}
           <div className="latency-chart">
             <div className="latency-bars">
-              {requestHistory.map((req, i) => {
+              {[...requestHistory].reverse().map((req, i) => {
+                const actualIndex = requestHistory.length - i;
                 const serverWidth = (req.serverTotalMs / maxE2E) * 100;
                 const overheadWidth = (req.overheadMs / maxE2E) * 100;
                 return (
                   <div
                     key={req.requestId}
-                    className="latency-bar-row"
-                    title={`E2E: ${req.e2eMs.toFixed(0)}ms (Server: ${req.serverTotalMs.toFixed(0)}ms + Overhead: ${req.overheadMs.toFixed(0)}ms)`}
+                    className={`latency-bar-row ${req.wasQueued ? 'latency-bar-queued' : ''}`}
+                    title={`#${actualIndex}: E2E ${req.e2eMs.toFixed(0)}ms (Server: ${req.serverTotalMs.toFixed(0)}ms + Overhead: ${req.overheadMs.toFixed(0)}ms)${req.wasQueued ? ' [queued]' : ''}`}
                   >
-                    <div className="latency-bar-index">{i + 1}</div>
+                    <div className="latency-bar-index">
+                      {req.wasQueued && <span className="latency-queued-marker">Q</span>}
+                      {actualIndex}
+                    </div>
                     <div className="latency-bar-container">
                       <div
                         className="latency-bar-server"
@@ -94,6 +98,10 @@ export function LatencyPanel() {
                 <span className="latency-legend-color latency-legend-overhead" />
                 Overhead
               </span>
+              <span className="latency-legend-item">
+                <span className="latency-queued-marker">Q</span>
+                Queued
+              </span>
             </div>
           </div>
 
@@ -115,13 +123,14 @@ export function LatencyPanel() {
         <div className="latency-pending">
           <div className="latency-pending-header">Pending ({pendingCount})</div>
           <div className="latency-pending-list">
-            {pendingRequests.map((req) => {
+            {pendingRequests.map((req, i) => {
               const elapsed = Date.now() - req.startTime;
               return (
                 <div key={req.requestId} className="latency-pending-item">
-                  <span className="latency-pending-dot" />
+                  <span className={`latency-pending-dot ${req.wasQueued ? 'latency-pending-queued' : ''}`} />
                   <span>{elapsed.toFixed(0)}ms elapsed</span>
                   <span className="latency-pending-audio">({req.audioDurationMs.toFixed(0)}ms audio)</span>
+                  {req.wasQueued && <span className="latency-pending-queued-label">queued behind #{i}</span>}
                 </div>
               );
             })}

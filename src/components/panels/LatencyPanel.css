@@ -30,9 +30,22 @@
 .latency-bar-index {
   font-size: 9px;
   color: var(--color-text-dim);
-  width: 16px;
+  width: 24px;
   text-align: right;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.latency-queued-marker {
+  font-size: 8px;
+  font-weight: bold;
+  color: var(--color-error);
+  background: rgba(239, 68, 68, 0.15);
+  padding: 0 3px;
+  border-radius: 2px;
 }
 
 .latency-bar-container {
@@ -131,8 +144,17 @@
   animation: pulse 1s ease-in-out infinite;
 }
 
+.latency-pending-dot.latency-pending-queued {
+  background: var(--color-error);
+}
+
 .latency-pending-audio {
   color: var(--color-text-dim);
+}
+
+.latency-pending-queued-label {
+  color: var(--color-error);
+  font-size: 9px;
 }
 
 @keyframes pulse {
